@@ -63,10 +63,14 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             transitive = [compilation_ctx.headers],
         ),
         outputs = [out],
+        arguments = [str(kwargs["suppress_stderr"]).lower()],
         command = """
 set -euo pipefail
 
-{binary} {tidy_options} $(readlink --canonicalize {infile}) -- {compiler_command} {suppress_stderr}
+{binary} {tidy_options} $(readlink --canonicalize {infile}) -- {compiler_command} 2> log.stderr || \
+        (cat log.stderr >&2 && false)
+
+$1 || cat log.stderr
 
 touch {outfile}
 """.format(
@@ -79,7 +83,6 @@ touch {outfile}
                 _compilation_ctx_args(compilation_ctx) +
                 _toolchain_args(ctx),
             ),
-            suppress_stderr = "2> /dev/null" if kwargs["suppress_stderr"] else "",
         ),
         mnemonic = "ClangTidy",
         progress_message = "Linting {}".format(source_file.short_path),
@@ -124,5 +127,6 @@ def make_clang_tidy_aspect(
 check_aspect = make_clang_tidy_aspect(
     options = [
         "--use-color",
+        "--warnings-as-errors=\"*\"",
     ],
 )
