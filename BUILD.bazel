@@ -1,13 +1,11 @@
-load("@buildifier_prebuilt//:rules.bzl", "buildifier")
+package(default_visibility = ["//visibility:public"])
 
-buildifier(
-    name = "buildifier.check",
-    lint_mode = "warn",
-    mode = "check",
+filegroup(
+    name = "default-config",
+    srcs = [".clang-tidy"],
 )
 
-buildifier(
-    name = "buildifier.fix",
-    lint_mode = "warn",
-    mode = "fix",
+label_flag(
+    name = "config",
+    build_setting_default = ":default-config",
 )

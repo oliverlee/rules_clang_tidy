@@ -37,8 +37,35 @@ Perform static analysis with
 bazel build //... --config=clang-tidy
 ```
 
-This will use `clang-tidy` in your `PATH` and pick up a `.clang-tidy` file
-defined in your repository.
+This will use `clang-tidy` in your `PATH` and [`.clang-tidy`](.clang_tidy)
+defined in this repository.
+
+### specifying `.clang-tidy`
+
+<details><summary></summary>
+
+To override the default `.clang-tidy`, define a `filegroup` containing the
+replacement config and update build setting in `.bazelrc`.
+
+```Starlark
+# //:BUILD.bazel
+
+filegroup(
+    name = "clang-tidy-config",
+    srcs = [".clang-tidy"],
+    visibility = ["//visibility:public"],
+)
+```
+
+```Starlark
+# //:.bazelrc
+
+build --@rules_clang_tidy//:config=//:clang-tidy-config
+
+build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
+build:clang-tidy --output_groups=report
+build:clang-tidy --keep_going
+```
 
 ## Requirements
 
