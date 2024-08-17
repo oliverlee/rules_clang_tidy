@@ -55,6 +55,7 @@ def _toolchain_args(ctx):
     )
 
 def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
+    binary = ctx.attr._binary.files_to_run.executable
     out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy")
 
     ctx.actions.run_shell(
@@ -62,7 +63,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             direct = [
                 ctx.file._config,
                 source_file,
-            ],
+            ] + ([binary] if binary else []),
             transitive = [compilation_ctx.headers],
         ),
         outputs = [out],
@@ -81,7 +82,7 @@ $1 || cat log.stderr
 
 touch {outfile}
 """.format(
-            binary = "clang-tidy",
+            binary = binary.path if binary else "clang-tidy",
             config = ctx.file._config.path,
             tidy_options = " ".join(kwargs["tidy_options"]),
             infile = source_file.path,
@@ -132,6 +133,7 @@ def _clang_tidy_aspect_impl(**kwargs):
     return impl
 
 def make_clang_tidy_aspect(
+        binary = None,
         config = None,
         options = [],
         suppress_stderr = True,
@@ -140,7 +142,13 @@ def make_clang_tidy_aspect(
     Creates an aspect to run ClangTidy.
 
     Args:
-        config: label; or `None`; default is `None`
+        binary: `label`; or `None`; default is `None`
+            A label specifying a `clang-tidy` binary. If `None`, the binary is
+            determined by `label_flag` `//:binary`. If `//:binary` is not
+            overriden to specify a binary, `clang-tidy` must be available in
+            `PATH`.
+
+        config: `label`; or `None`; default is `None`
             A single file filegroup passed to ClangTidy with `--config-file`.
             If `None`, the config file used by ClangTidy is determined by
             `label_flag` `//:config`.
@@ -164,6 +172,9 @@ def make_clang_tidy_aspect(
         ),
         fragments = ["cpp"],
         attrs = {
+            "_binary": attr.label(
+                default = Label(binary or "//:binary"),
+            ),
             "_config": attr.label(
                 default = Label(config or "//:config"),
                 allow_single_file = True,

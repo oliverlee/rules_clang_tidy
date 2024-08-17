@@ -40,6 +40,26 @@ bazel build //... --config=clang-tidy
 This will use `clang-tidy` in your `PATH` and [`.clang-tidy`](.clang_tidy)
 defined in this repository.
 
+### using a hermetic toolchain
+
+<details><summary></summary>
+
+To specify a specific binary (e.g. `clang-tidy` is specified by a hermetic
+toolchain like [this](https://github.com/bazel-contrib/toolchains_llvm)), update
+the build setting in `.bazelrc`.
+
+```Starlark
+# //:.bazelrc
+
+build --@rules_clang_tidy//:binary=@llvm18//:clang-tidy
+
+build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
+build:clang-tidy --output_groups=report
+build:clang-tidy --keep_going
+```
+
+</details>
+
 ### specifying `.clang-tidy`
 
 <details><summary></summary>
