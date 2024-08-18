@@ -1,4 +1,5 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+load("@bazel_skylib//rules:write_file.bzl", "write_file")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -10,6 +11,28 @@ filegroup(
 label_flag(
     name = "binary",
     build_setting_default = ":default-binary",
+)
+
+write_file(
+    name = "gen-system-clang-apply-replacements",
+    out = "system-clang-apply-replacements.bash",
+    content = [
+        "#!/usr/bin/env bash",
+        "set -euo pipefail",
+        "exec clang-apply-replacements \"$@\"",
+        "",
+    ],
+    is_executable = True,
+)
+
+sh_binary(
+    name = "system-clang-apply-replacements",
+    srcs = [":system-clang-apply-replacements.bash"],
+)
+
+label_flag(
+    name = "clang-apply-replacements",
+    build_setting_default = ":system-clang-apply-replacements",
 )
 
 filegroup(
@@ -25,6 +48,8 @@ label_flag(
 sh_binary(
     name = "apply-fixes",
     srcs = ["apply-fixes.sh"],
+    args = ["$(locations :clang-apply-replacements)"],
+    data = [":clang-apply-replacements"],
 )
 
 # Extra options appended after `tidy_options`. This allows extra options to be

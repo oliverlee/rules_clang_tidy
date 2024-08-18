@@ -133,6 +133,7 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
                 _toolchain_args(ctx) +
                 _compilation_ctx_args(compilation_ctx) +
                 ctx.rule.attr.copts,
+                # TODO add options from cpp fragment
             ),
         ),
         mnemonic = "ClangTidy",
@@ -156,6 +157,10 @@ def _check_attr(ctx):
 
 def _clang_tidy_aspect_impl(**kwargs):
     def impl(target, ctx):
+        # https://github.com/bazelbuild/bazel/issues/19609
+        if not CcInfo in target:
+            return []
+
         _check_attr(ctx)
 
         outputs = [
@@ -170,6 +175,7 @@ def _clang_tidy_aspect_impl(**kwargs):
                 _source_files_in(ctx, "srcs")
             )
         ]
+
         return [OutputGroupInfo(report = depset(outputs))]
 
     return impl
@@ -229,7 +235,6 @@ def make_clang_tidy_aspect(
                 default = Label("//:extra-options"),
             ),
         },
-        required_providers = [CcInfo],
         toolchains = [CC_TOOLCHAIN_TYPE],
     )
 
@@ -249,9 +254,13 @@ export_fixes_aspect = make_clang_tidy_aspect(
 )
 
 def _apply_fixes_impl(ctx):
+    apply_bin = ctx.attr._clang_apply_replacements.files_to_run.executable
     depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
 
-    runfiles = ctx.runfiles(transitive_files = depset(transitive = depsets))
+    runfiles = ctx.runfiles(
+        files = [apply_bin],
+        transitive_files = depset(transitive = depsets),
+    )
     fixes = [f for dep in depsets for f in dep.to_list()]
     out = ctx.actions.declare_file(ctx.label.name + ".bash")
 
@@ -269,12 +278,11 @@ for src in "${{fixes[@]}}"; do
   sed -e "s+%workspace%+$BUILD_WORKSPACE_DIRECTORY+" "$src" > "$dst"
 done
 
-# TODO remove hard-coded binary
-clang-apply-replacements updated-fixes 2> log.stderr
->&2 cat log.stderr
+{apply_bin} updated-fixes 2> >(tee -a log.stderr >&2)
 
-grep -v "doesn't exist" log.stderr
+[ $(grep --max-count=1 --count "doesn't exist" log.stderr) -eq 0 ]
         """.format(
+            apply_bin = apply_bin.short_path,
             fixes = shell.array_literal([
                 f.short_path
                 for f in fixes
@@ -294,6 +302,9 @@ apply_fixes = rule(
         "deps": attr.label_list(
             aspects = [export_fixes_aspect],
             providers = [CcInfo],
+        ),
+        "_clang_apply_replacements": attr.label(
+            default = Label("//:clang-apply-replacements"),
         ),
     },
     executable = True,

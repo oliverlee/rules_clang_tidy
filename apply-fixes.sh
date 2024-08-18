@@ -2,7 +2,10 @@
 
 set -euo pipefail
 
-find "$1" -type f -name "*.clang-tidy.yaml" | \
+apply_bin="$1"
+output_path="$2"
+
+find "$output_path" -type f -name "*.clang-tidy.yaml" | \
     xargs sed -i -e "s+%workspace%+$BUILD_WORKSPACE_DIRECTORY+g"
 
-clang-apply-replacements "$1"
+"$apply_bin" "$output_path"

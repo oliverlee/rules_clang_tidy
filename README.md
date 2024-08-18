@@ -124,6 +124,36 @@ Then apply fixes with
 bazel run @rules_clang_tidy//:apply-fixes -- $(bazel info output_path)
 ```
 
+Alternatively, use rule `apply_fixes` and specify the dependencies for the
+target.
+
+```Starlark
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+apply_fixes(
+    name = "apply-fixes",
+    deps = [
+        ...
+    ],
+    testonly = True, # if deps includes cc_test targets
+)
+```
+
+Run the `apply_fixes` target
+
+```sh
+bazel run //:apply-fixes
+
+bazel run //:apply-fixes \
+  --@rules_clang_tidy//:extra-options="--checks=-*,misc-unused-alias-decls*"
+```
+
+Both the `apply-fixes` executable target and the `apply_fixes` rule use the
+binary specified with `--@rules_clang_tidy//:clang-apply-replacements`. If not
+set, `clang-apply-replacements` must be in `PATH`. Similarly to
+`--@rules_clang_tidy//:binary`, it's convenient to define the value in
+`.bazelrc`.
+
 </details>
 
 ## Requirements
