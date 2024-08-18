@@ -30,7 +30,7 @@ rules_clang_tidy_dependencies()
 
 ```Starlark
 # //:.bazelrc
-build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
+build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
 build:clang-tidy --output_groups=report
 build:clang-tidy --keep_going
 ```
@@ -57,7 +57,7 @@ the build setting in `.bazelrc`.
 
 build --@rules_clang_tidy//:clang-tidy=@llvm18//:clang-tidy
 
-build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
+build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
 build:clang-tidy --output_groups=report
 build:clang-tidy --keep_going
 ```
@@ -86,7 +86,7 @@ filegroup(
 
 build --@rules_clang_tidy//:config=//:clang-tidy-config
 
-build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
+build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
 build:clang-tidy --output_groups=report
 build:clang-tidy --keep_going
 ```
@@ -97,12 +97,12 @@ build:clang-tidy --keep_going
 
 <details><summary></summary>
 
-To apply fixes, generate the exported fixes with the export fix aspect.
+To apply fixes, generate the exported fixes with the `export_fixes` aspect.
 
 ```Starlark
 # //:.bazelrc
 
-build:clang-tidy-export-fixes --aspects=@rules_clang_tidy//:defs.bzl%export_fixes_aspect
+build:clang-tidy-export-fixes --aspects=@rules_clang_tidy//:aspects.bzl%export_fixes
 build:clang-tidy-export-fixes --output_groups=report
 build:clang-tidy-export-fixes --remote_download_outputs=toplevel
 ```
@@ -118,7 +118,7 @@ bazel build //... --config=clang-tidy-export-fixes \
   --@rules_clang_tidy//:extra-options="--checks=-*,misc-unused-alias-decls"
 ```
 
-Then apply fixes with
+Then apply the exported fixes with
 
 ```sh
 bazel run @rules_clang_tidy//:apply-fixes -- $(bazel info output_path)
@@ -139,7 +139,7 @@ apply_fixes(
 )
 ```
 
-Run the `apply_fixes` target
+and run the `apply_fixes` target
 
 ```sh
 bazel run //:apply-fixes
