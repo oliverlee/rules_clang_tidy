@@ -3,6 +3,7 @@ ClangTidy aspect
 """
 
 load("@bazel_skylib//lib:shell.bzl", "shell")
+load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE")
 
@@ -86,7 +87,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
     binary = ctx.attr._binary.files_to_run.executable
     out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy.yaml")
 
-    substitute_outfile = lambda s: s.replace("$@", out.path)
+    sub_outfile = lambda s: s.replace("$@", out.path)
 
     ctx.actions.run_shell(
         inputs = depset(
@@ -99,6 +100,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
         outputs = [out],
         arguments = [str(not kwargs["display_stderr"]).lower()],
         command = """\
+#!/usr/bin/env bash
 set -euo pipefail
 
 {binary} \
@@ -113,13 +115,18 @@ $1 || cat log.stderr
 
 touch {outfile}
 
-# replace sandbox path prefix from file paths and hope `+` isn't used anywhere
+# replace sandbox path prefix from file paths and
+# hope `+` isn't used anywhere
 sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
         """.format(
             binary = binary.path if binary else "clang-tidy",
             config = ctx.file._config.path,
-            tidy_options = substitute_outfile(" ".join(kwargs["tidy_options"])),
-            extra_options = substitute_outfile(ctx.attr.extra_options),
+            tidy_options = sub_outfile(
+                " ".join(kwargs["tidy_options"]),
+            ),
+            extra_options = sub_outfile(
+                ctx.attr._extra_options[BuildSettingInfo].value,
+            ),
             infile = source_file.path,
             outfile = out.path,
             compiler_command = " ".join(
@@ -218,18 +225,8 @@ def make_clang_tidy_aspect(
                 default = Label(config or "//:config"),
                 allow_single_file = True,
             ),
-            "extra_options": attr.string(
-                doc = """
-                Extra options appended after `tidy_options`. This allows extra
-                options to be specified with `--aspects_parameters` (e.g. to
-                apply fix-its for a specific check by limiting `clang-tidy` to
-                that specific check).
-
-                https://bazel.build/reference/command-line-reference#flag--aspects_parameters
-                """,
-                values = [""],
-                default = "",
-                mandatory = False,
+            "_extra_options": attr.label(
+                default = Label("//:extra-options"),
             ),
         },
         required_providers = [CcInfo],
@@ -252,11 +249,11 @@ export_fixes_aspect = make_clang_tidy_aspect(
 )
 
 def _apply_fixes_impl(ctx):
-    out = ctx.actions.declare_file(ctx.label.name + ".bash")
-    fixes = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
-    runfiles = ctx.runfiles(transitive_files = depset(transitive = fixes))
+    depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
 
-    flattened_list = lambda depsets: [f for dep in depsets for f in dep.to_list()]
+    runfiles = ctx.runfiles(transitive_files = depset(transitive = depsets))
+    fixes = [f for dep in depsets for f in dep.to_list()]
+    out = ctx.actions.declare_file(ctx.label.name + ".bash")
 
     ctx.actions.write(
         output = out,
@@ -280,7 +277,7 @@ grep -v "doesn't exist" log.stderr
         """.format(
             fixes = shell.array_literal([
                 f.short_path
-                for f in flattened_list(fixes)
+                for f in fixes
             ]),
         ),
         is_executable = True,
@@ -298,8 +295,6 @@ apply_fixes = rule(
             aspects = [export_fixes_aspect],
             providers = [CcInfo],
         ),
-        # TODO handle extra options
-        "extra_options": attr.string(default = ""),
     },
     executable = True,
     doc = """\

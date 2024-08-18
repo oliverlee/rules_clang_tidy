@@ -1,3 +1,5 @@
+load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
+
 package(default_visibility = ["//visibility:public"])
 
 filegroup(
@@ -23,4 +25,12 @@ label_flag(
 sh_binary(
     name = "apply-fixes",
     srcs = ["apply-fixes.sh"],
+)
+
+# Extra options appended after `tidy_options`. This allows extra options to be
+# specified on the command line (e.g. changing the checks to use with
+# `clang-tidy`).
+string_flag(
+    name = "extra-options",
+    build_setting_default = "",
 )

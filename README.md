@@ -111,11 +111,11 @@ build:clang-tidy-export-fixes --remote_download_outputs=toplevel
 bazel build //... --config=clang-tidy-export-fixes
 ```
 
-If only a subset of checks needs to be run, those can be specified with `extra_options`.
+If only a subset of checks needs to be run, those can be specified with `extra-options`.
 
 ```sh
 bazel build //... --config=clang-tidy-export-fixes \
-  --aspects_parameters="extra_options='--checks=-*,misc-unused-alias-decls'"
+  --@rules_clang_tidy//:extra-options="--checks=-*,misc-unused-alias-decls"
 ```
 
 Then apply fixes with
