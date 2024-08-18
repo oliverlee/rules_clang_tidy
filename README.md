@@ -55,7 +55,7 @@ the build setting in `.bazelrc`.
 ```Starlark
 # //:.bazelrc
 
-build --@rules_clang_tidy//:binary=@llvm18//:clang-tidy
+build --@rules_clang_tidy//:clang-tidy=@llvm18//:clang-tidy
 
 build:clang-tidy --aspects=@rules_clang_tidy//:defs.bzl%check_aspect
 build:clang-tidy --output_groups=report
@@ -151,7 +151,7 @@ bazel run //:apply-fixes \
 Both the `apply-fixes` executable target and the `apply_fixes` rule use the
 binary specified with `--@rules_clang_tidy//:clang-apply-replacements`. If not
 set, `clang-apply-replacements` must be in `PATH`. Similarly to
-`--@rules_clang_tidy//:binary`, it's convenient to define the value in
+`--@rules_clang_tidy//:clang-tidy`, it's convenient to define the value in
 `.bazelrc`.
 
 </details>

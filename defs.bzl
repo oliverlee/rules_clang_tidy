@@ -84,7 +84,7 @@ def _toolchain_args(ctx):
     )
 
 def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
-    binary = ctx.attr._binary.files_to_run.executable
+    clang_tidy = ctx.attr._clang_tidy.files_to_run.executable
     out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy.yaml")
 
     sub_outfile = lambda s: s.replace("$@", out.path)
@@ -94,7 +94,8 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             direct = [
                 ctx.file._config,
                 source_file,
-            ] + ([binary] if binary else []),
+                clang_tidy,
+            ],
             transitive = [compilation_ctx.headers],
         ),
         outputs = [out],
@@ -103,7 +104,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
 #!/usr/bin/env bash
 set -euo pipefail
 
-{binary} \
+{clang_tidy} \
     --config-file={config} \
     {tidy_options} \
     {extra_options} \
@@ -119,7 +120,7 @@ touch {outfile}
 # hope `+` isn't used anywhere
 sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
         """.format(
-            binary = binary.path if binary else "clang-tidy",
+            clang_tidy = clang_tidy.path,
             config = ctx.file._config.path,
             tidy_options = sub_outfile(
                 " ".join(kwargs["tidy_options"]),
@@ -181,7 +182,7 @@ def _clang_tidy_aspect_impl(**kwargs):
     return impl
 
 def make_clang_tidy_aspect(
-        binary = None,
+        clang_tidy = None,
         config = None,
         options = [],
         display_stderr = False,
@@ -190,11 +191,11 @@ def make_clang_tidy_aspect(
     Creates an aspect to run ClangTidy.
 
     Args:
-        binary: `label`; or `None`; default is `None`
+        clang_tidy: `label`; or `None`; default is `None`
             A label specifying a `clang-tidy` binary. If `None`, the binary is
-            determined by `label_flag` `//:binary`. If `//:binary` is not
-            overriden to specify a binary, `clang-tidy` must be available in
-            `PATH`.
+            determined by `label_flag` `//:clang-tidy`. If `//:clang-tidy` is
+            not overriden to specify a binary, `clang-tidy` must be available
+            in `PATH`.
 
         config: `label`; or `None`; default is `None`
             A single file filegroup passed to ClangTidy with `--config-file`.
@@ -224,8 +225,8 @@ def make_clang_tidy_aspect(
         ),
         fragments = ["cpp"],
         attrs = {
-            "_binary": attr.label(
-                default = Label(binary or "//:binary"),
+            "_clang_tidy": attr.label(
+                default = Label(clang_tidy or "//:clang-tidy"),
             ),
             "_config": attr.label(
                 default = Label(config or "//:config"),
