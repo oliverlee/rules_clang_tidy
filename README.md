@@ -87,6 +87,37 @@ build:clang-tidy --output_groups=report
 build:clang-tidy --keep_going
 ```
 
+### applying fixes
+
+<details><summary></summary>
+
+To apply fixes, generate the exported fixes with the export fix aspect.
+
+```Starlark
+# //:.bazelrc
+
+build:clang-tidy-export-fixes --aspects=@rules_clang_tidy//:defs.bzl%export_fixes_aspect
+build:clang-tidy-export-fixes --output_groups=report
+build:clang-tidy-export-fixes --remote_download_outputs=toplevel
+```
+
+```sh
+bazel build //... --config=clang-tidy-export-fixes
+```
+
+If only a subset of checks needs to be run, those can be specified with `extra_options`.
+
+```sh
+bazel build //... --config=clang-tidy-export-fixes \
+  --aspects_parameters="extra_options='--checks=-*,misc-unused-alias-decls'"
+```
+
+Then apply fixes with
+
+```sh
+bazel run @rules_clang_tidy//:apply-fixes -- $(bazel info output_path)
+```
+
 ## Requirements
 
 - Bazel 5.x

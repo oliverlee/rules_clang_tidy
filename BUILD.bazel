@@ -19,3 +19,8 @@ label_flag(
     name = "config",
     build_setting_default = ":default-config",
 )
+
+sh_binary(
+    name = "apply-fixes",
+    srcs = ["apply-fixes.sh"],
+)

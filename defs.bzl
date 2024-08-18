@@ -33,6 +33,33 @@ def _compilation_ctx_args(compilation_ctx):
         map(prefix("-isystem"), "system_includes")
     )
 
+def _clang_stdlib_sort(paths):
+    # Try and sort paths such that C++ Standard Library headers come before
+    # C Standard Library headers.
+
+    def is_lib_clang_path(p):
+        stems = p.rsplit("/", 4)
+        return (
+            len(stems) == 4 and
+            stems[0] == "lib" and
+            stems[1] == "clang" and
+            stems[3] in ["include", "share"]
+        )
+
+    maybe_libcpp = lambda p: (
+        p.rstrip("/").endswith("/c++/v1") or
+        is_lib_clang_path(p.rstrip("/"))
+    )
+
+    front, back = [], []
+    for p in paths:
+        if maybe_libcpp(p):
+            front.append(p)
+        else:
+            back.append(p)
+
+    return front + back
+
 def _toolchain_args(ctx):
     cc_toolchain = ctx.toolchains[CC_TOOLCHAIN_TYPE].cc
 
@@ -47,7 +74,7 @@ def _toolchain_args(ctx):
     )
     return [
         "-isystem" + d
-        for d in cc_toolchain.built_in_include_directories
+        for d in _clang_stdlib_sort(cc_toolchain.built_in_include_directories)
     ] + cc_common.get_memory_inefficient_command_line(
         feature_configuration = feature_configuration,
         action_name = ACTION_NAMES.cpp_compile,
@@ -56,7 +83,9 @@ def _toolchain_args(ctx):
 
 def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
     binary = ctx.attr._binary.files_to_run.executable
-    out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy")
+    out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy.yaml")
+
+    substitute_outfile = lambda s: s.replace("$@", out.path)
 
     ctx.actions.run_shell(
         inputs = depset(
@@ -67,30 +96,35 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             transitive = [compilation_ctx.headers],
         ),
         outputs = [out],
-        arguments = [str(kwargs["suppress_stderr"]).lower()],
+        arguments = [str(not kwargs["display_stderr"]).lower()],
         command = """
 set -euo pipefail
 
 {binary} \
     --config-file={config} \
     {tidy_options} \
-    $(readlink --canonicalize {infile}) \
+    {extra_options} \
+    {infile} \
       -- {compiler_command} 2> log.stderr \
   || (cat log.stderr >&2 && false)
 
 $1 || cat log.stderr
 
 touch {outfile}
+
+# replace sandbox path prefix from file paths and hope `+` isn't used anywhere
+sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
 """.format(
             binary = binary.path if binary else "clang-tidy",
             config = ctx.file._config.path,
-            tidy_options = " ".join(kwargs["tidy_options"]),
+            tidy_options = substitute_outfile(" ".join(kwargs["tidy_options"])),
+            extra_options = substitute_outfile(ctx.attr.extra_options),
             infile = source_file.path,
             outfile = out.path,
             compiler_command = " ".join(
-                ctx.rule.attr.copts +
+                _toolchain_args(ctx) +
                 _compilation_ctx_args(compilation_ctx) +
-                _toolchain_args(ctx),
+                ctx.rule.attr.copts,
             ),
         ),
         mnemonic = "ClangTidy",
@@ -136,7 +170,7 @@ def make_clang_tidy_aspect(
         binary = None,
         config = None,
         options = [],
-        suppress_stderr = True,
+        display_stderr = False,
         execution_requirements = None):
     """
     Creates an aspect to run ClangTidy.
@@ -156,18 +190,22 @@ def make_clang_tidy_aspect(
         options: List of strings; default is []
             A list of options passed to ClangTidy.
 
-        suppress_stderr: `bool`; default is `True`
-            Suppress stderr when ClangTidy runs successfully. This is quieter
-            than the `--quiet` option and can be used to suppress messages
-            about the number of generated warnings.
+        display_stderr: `bool`; default is `False`
+            Display stderr when ClangTidy runs successfully. Setting this to
+            `False` is quieter than the `--quiet` option and can be used to
+            suppress messages about the number of generated warnings.
 
         execution_requirements: `dict`; or `None`; default is `None`
             Information for scheduling the action.
+            https://bazel.build/reference/be/common-definitions#common.tags
+
+    The aspect produces a single output file in the `report` output group.
+    Options can refer to the output file with `$@`.
     """
     return aspect(
         implementation = _clang_tidy_aspect_impl(
             tidy_options = options,
-            suppress_stderr = suppress_stderr,
+            display_stderr = display_stderr,
             execution_requirements = execution_requirements,
         ),
         fragments = ["cpp"],
@@ -179,6 +217,16 @@ def make_clang_tidy_aspect(
                 default = Label(config or "//:config"),
                 allow_single_file = True,
             ),
+            "extra_options": attr.string(
+                doc = """
+                Extra options appended after `tidy_options`. This allows extra
+                options to be specified with `--aspects_parameters` (e.g. to
+                apply fix-its for a specific check by limiting `clang-tidy` to
+                that specific check).
+
+                https://bazel.build/reference/command-line-reference#flag--aspects_parameters
+                """,
+            ),
         },
         required_providers = [CcInfo],
         toolchains = [CC_TOOLCHAIN_TYPE],
@@ -187,6 +235,14 @@ def make_clang_tidy_aspect(
 check_aspect = make_clang_tidy_aspect(
     options = [
         "--use-color",
-        "--warnings-as-errors=\"*\"",
+        "--warnings-as-errors='*'",
+    ],
+)
+
+export_fixes_aspect = make_clang_tidy_aspect(
+    options = [
+        "--use-color",
+        "--warnings-as-errors='-*'",
+        "--export-fixes=$@",
     ],
 )
