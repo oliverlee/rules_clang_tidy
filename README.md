@@ -22,6 +22,10 @@ http_repository(
         commit = RULES_CLANG_TIDY_COMMIT,
     ),
 )
+
+load("@rules_clang_tidy//:dependencies.bzl", "rules_clang_tidy_dependencies")
+
+rules_clang_tidy_dependencies()
 ```
 
 ```Starlark
@@ -87,6 +91,8 @@ build:clang-tidy --output_groups=report
 build:clang-tidy --keep_going
 ```
 
+</details>
+
 ### applying fixes
 
 <details><summary></summary>
@@ -117,6 +123,8 @@ Then apply fixes with
 ```sh
 bazel run @rules_clang_tidy//:apply-fixes -- $(bazel info output_path)
 ```
+
+</details>
 
 ## Requirements
 

@@ -2,6 +2,7 @@
 ClangTidy aspect
 """
 
+load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE")
 
@@ -97,7 +98,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
         ),
         outputs = [out],
         arguments = [str(not kwargs["display_stderr"]).lower()],
-        command = """
+        command = """\
 set -euo pipefail
 
 {binary} \
@@ -114,7 +115,7 @@ touch {outfile}
 
 # replace sandbox path prefix from file paths and hope `+` isn't used anywhere
 sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
-""".format(
+        """.format(
             binary = binary.path if binary else "clang-tidy",
             config = ctx.file._config.path,
             tidy_options = substitute_outfile(" ".join(kwargs["tidy_options"])),
@@ -226,6 +227,9 @@ def make_clang_tidy_aspect(
 
                 https://bazel.build/reference/command-line-reference#flag--aspects_parameters
                 """,
+                values = [""],
+                default = "",
+                mandatory = False,
             ),
         },
         required_providers = [CcInfo],
@@ -245,4 +249,79 @@ export_fixes_aspect = make_clang_tidy_aspect(
         "--warnings-as-errors='-*'",
         "--export-fixes=$@",
     ],
+)
+
+def _apply_fixes_impl(ctx):
+    out = ctx.actions.declare_file(ctx.label.name + ".bash")
+    fixes = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
+    runfiles = ctx.runfiles(transitive_files = depset(transitive = fixes))
+
+    flattened_list = lambda depsets: [f for dep in depsets for f in dep.to_list()]
+
+    ctx.actions.write(
+        output = out,
+        content = """\
+#!/usr/bin/env bash
+set -euo pipefail
+
+fixes={fixes}
+
+for src in "${{fixes[@]}}"; do
+  dst="updated-fixes/$src"
+  mkdir -p $(dirname "$dst")
+  sed -e "s+%workspace%+$BUILD_WORKSPACE_DIRECTORY+" "$src" > "$dst"
+done
+
+# TODO remove hard-coded binary
+clang-apply-replacements updated-fixes 2> log.stderr
+>&2 cat log.stderr
+
+grep -v "doesn't exist" log.stderr
+        """.format(
+            fixes = shell.array_literal([
+                f.short_path
+                for f in flattened_list(fixes)
+            ]),
+        ),
+        is_executable = True,
+    )
+
+    return [DefaultInfo(
+        runfiles = runfiles,
+        executable = out,
+    )]
+
+apply_fixes = rule(
+    implementation = _apply_fixes_impl,
+    attrs = {
+        "deps": attr.label_list(
+            aspects = [export_fixes_aspect],
+            providers = [CcInfo],
+        ),
+        # TODO handle extra options
+        "extra_options": attr.string(default = ""),
+    },
+    executable = True,
+    doc = """\
+Defines an executable rule to run ClangTidy and then apply fixes.
+
+Args:
+    name: `string`
+        rule name
+
+    deps: `label_list`
+        List of targets to apply fixes to. Fixes are applied to files in
+        the `hdrs` or `srcs` attributes.
+
+```bzl
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+apply_fixes(
+    name = "apply-fixes",
+    deps = [
+        ...
+    ],
+)
+```
+    """,
 )
