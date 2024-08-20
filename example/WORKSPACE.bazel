@@ -2,3 +2,7 @@ local_repository(
     name = "rules_clang_tidy",
     path = "..",
 )
+
+load("@rules_clang_tidy//:dependencies.bzl", "rules_clang_tidy_dependencies")
+
+rules_clang_tidy_dependencies()
