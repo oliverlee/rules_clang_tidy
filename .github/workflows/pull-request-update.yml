@@ -1,0 +1,11 @@
+name: pull-request-update
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  pull-request-update:
+    uses: oliverlee/pull-request-update/.github/workflows/pull-request-update.yml@main
+    secrets: inherit
