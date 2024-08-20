@@ -2,27 +2,21 @@
 Determines the workspace status used as an input to `apply_fixes` rules.
 """
 
-def _local_workspace_status_impl(rctx):
-    rctx.file(
-        "WORKSPACE.bazel",
-        content = """\
-workspace(name = {name})
-        """.format(name = rctx.name),
-        executable = False,
-    )
+load("@bazel_skylib//lib:versions.bzl", "versions")
 
-    # TODO handle < Bazel 7.1.0
+def _setup_status_file(rctx):
+    """
+    Setup the workspace status file.
+
+    Stores a hash value for the build files of the root workspace (i.e.
+    consumer of @bazel-clang-tidy) in a status file.
+
+    This status file is updated whenever any build files change.
+    """
+
     # https://github.com/bazelbuild/bazel/issues/20952
     # https://github.com/bazelbuild/bazel/issues/20363
     rctx.watch_tree(rctx.workspace_root)
-
-    rctx.file(
-        "BUILD.bazel",
-        content = """\
-exports_files(["config.bzl", "status"])
-        """,
-        executable = False,
-    )
 
     rctx.file(
         "workspace-status.bash",
@@ -60,6 +54,23 @@ echo "$build_files" | xargs -I % cat % | md5sum
         executable = False,
     )
 
+def _local_workspace_status_impl(rctx):
+    rctx.file(
+        "WORKSPACE.bazel",
+        content = """\
+workspace(name = {name})
+        """.format(name = rctx.name),
+        executable = False,
+    )
+
+    rctx.file(
+        "BUILD.bazel",
+        content = """\
+exports_files(["config.bzl", "status"])
+        """,
+        executable = False,
+    )
+
     rctx.file(
         "config.bzl",
         content = """
@@ -71,6 +82,15 @@ BUILD_WORKSPACE_DIRECTORY = "{workspace_root}"
         ),
         executable = False,
     )
+
+    if versions.is_at_least("7.1.0", native.bazel_version):
+        _setup_status_file(rctx)
+    else:
+        rctx.file(
+            "status",
+            content = "",
+            executable = False,
+        )
 
 local_workspace_status = repository_rule(
     implementation = _local_workspace_status_impl,

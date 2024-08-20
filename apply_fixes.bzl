@@ -5,6 +5,8 @@ multiple times to a header when running on multiple targets.
 """
 
 load("@bazel_skylib//lib:shell.bzl", "shell")
+load("@bazel_skylib//lib:versions.bzl", "versions")
+load("@local_bazel_version//:bazel_version.bzl", "BAZEL_VERSION")
 load(":aspects.bzl", "export_fixes")
 
 def _verify_desired_deps(ctx):
@@ -152,6 +154,13 @@ def _apply_fixes_impl(ctx):
     depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
     fixes = [f for dep in depsets for f in dep.to_list()]
 
+    if ctx.attr.desired_deps and not versions.is_at_least("7.1.0", BAZEL_VERSION):
+        fail(
+            "\n\nFor rule '{}', ".format(str(ctx.label).strip("@")) +
+            "use of 'desired_deps' requires Bazel 7.1.0 or higher.\n" +
+            "Please remove `desired_deps` or use a newer version of Bazel.\n\n",
+        )
+
     runfiles = ctx.runfiles(
         files = [apply_bin] + (
             [_verify_desired_deps(ctx)] if ctx.attr.desired_deps else []
@@ -237,11 +246,6 @@ Args:
 
        If the targets specified by this attribute (with a CcInfo provider)
        does not match the deps attribute, this rule will fail with an error.
-
-       Bazel 7.1.0 may be required for some wildcards although there is a
-       workaround for older versions.
-       https://github.com/bazelbuild/bazel/issues/10653
-       https://github.com/bazelbuild/bazel/issues/10653#issuecomment-694230015
 
        Use of this attribute runs a child Bazel process (using `bazel_bin`),
        which may not have the same configuration as the parent process.

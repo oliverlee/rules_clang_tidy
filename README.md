@@ -135,6 +135,7 @@ apply_fixes(
     deps = [
         ...
     ],
+    desired_deps = "//...", # requires Bazel 7.1.0
     testonly = True, # if deps includes cc_test targets
 )
 ```
