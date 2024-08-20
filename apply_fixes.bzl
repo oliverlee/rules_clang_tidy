@@ -7,10 +7,9 @@ multiple times to a header when running on multiple targets.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load(":aspects.bzl", "export_fixes")
 
-def _apply_fixes_impl(ctx):
+def _verify_desired_deps(ctx):
     desired_deps = ctx.actions.declare_file(ctx.label.name + ".desired_deps")
 
-    # TODO skip this action if `desired_deps` is not set
     ctx.actions.run_shell(
         inputs = depset(
             transitive = [
@@ -146,9 +145,19 @@ touch {verify_file}
         progress_message = "Verifying deps of {}".format(ctx.label),
     )
 
+    return verify_file
+
+def _apply_fixes_impl(ctx):
     apply_bin = ctx.attr._clang_apply_replacements.files_to_run.executable
     depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
     fixes = [f for dep in depsets for f in dep.to_list()]
+
+    runfiles = ctx.runfiles(
+        files = [apply_bin] + (
+            [_verify_desired_deps(ctx)] if ctx.attr.desired_deps else []
+        ),
+        transitive_files = depset(transitive = depsets),
+    )
 
     out = ctx.actions.declare_file(ctx.label.name + ".bash")
     ctx.actions.write(
@@ -176,11 +185,6 @@ done
             ]),
         ),
         is_executable = True,
-    )
-
-    runfiles = ctx.runfiles(
-        files = [apply_bin, verify_file],
-        transitive_files = depset(transitive = depsets),
     )
 
     return [DefaultInfo(
