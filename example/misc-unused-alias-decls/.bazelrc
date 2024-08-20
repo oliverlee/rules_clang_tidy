@@ -1,0 +1,5 @@
+common --enable_bzlmod=false
+
+build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
+build:clang-tidy --output_groups=report
+
