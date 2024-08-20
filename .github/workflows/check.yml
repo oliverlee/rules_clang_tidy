@@ -17,7 +17,7 @@ jobs:
         run: |
           bazel run //tools:buildifier.check
 
-  check-tidy:
+  check-tidy-matrix:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -25,28 +25,20 @@ jobs:
         include:
           - bazel: latest
             compiler: clang-18
-            example: misc-unused-alias-decls
           - bazel: latest
             compiler: clang-17
-            example: misc-unused-alias-decls
           - bazel: latest
             compiler: clang-16
-            example: misc-unused-alias-decls
           - bazel: latest
             compiler: clang-15
-            example: misc-unused-alias-decls
           - bazel: latest
             compiler: clang-14
-            example: misc-unused-alias-decls
           - bazel: 7.x
             compiler: clang-18
-            example: misc-unused-alias-decls
           - bazel: 6.x
             compiler: clang-18
-            example: misc-unused-alias-decls
           - bazel: 5.x
             compiler: clang-18
-            example: misc-unused-alias-decls
 
     steps:
       - name: install ${{ matrix.compiler }}
@@ -74,7 +66,7 @@ jobs:
         run: |
           set -x
 
-          cd example/${{ matrix.example }}
+          cd example
 
           if [[ "${{ matrix.bazel }}" < 6 ]]; then
             sed -i '/enable_bzlmod/d' .bazelrc
@@ -85,14 +77,56 @@ jobs:
             --config=clang-tidy \
             --color=yes \
             //... | tee log || true
-          cat log
-          grep "error: .*${{ matrix.example }}" log
+
+          grep "error: .*misc-unused-alias-decls" log
+
+  check-tidy-extra-options:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install clang-tidy
+        shell: bash
+        run: |
+          set -x
+
+          version=18
+
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh $version
+          sudo apt-get install -y clang-tidy-$version libc++-$version-dev
+
+          sudo ln -sf $(which clang-tidy-$version) /usr/bin/clang-tidy
+          clang-tidy-$version --version
+
+      - uses: actions/checkout@v4
+
+      - name: run clang-tidy
+        shell: bash
+        env:
+          CC: clang-18
+        run: |
+          set -x
+
+          cd example
+
+          bazel build \
+            --announce_rc \
+            --config=clang-tidy \
+            --color=yes \
+            --@rules_clang_tidy//:extra-options=--enable-check-profile \
+            --@rules_clang_tidy//:extra-options=--checks='fuchsia-*' \
+            //... 2>&1 | tee log || true
+
+          grep "clang-tidy checks profiling" log
+          grep "error: .*misc-unused-alias-decls" log
+          grep "error: .*fuchsia-trailing-return" log
 
   all:
     runs-on: ubuntu-latest
     if: ${{ github.base_ref == 'main' }}
     needs:
       - buildifier
-      - check-tidy
+      - check-tidy-matrix
+      - check-tidy-extra-options
     steps:
     - run: true

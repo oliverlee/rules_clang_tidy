@@ -1,0 +1,4 @@
+cc_binary(
+    name = "misc-unused-alias-decls",
+    srcs = ["misc-unused-alias-decls.cpp"],
+)

@@ -1,4 +1,4 @@
 local_repository(
     name = "rules_clang_tidy",
-    path = "../..",
+    path = "..",
 )

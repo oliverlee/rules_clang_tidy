@@ -111,7 +111,8 @@ build:clang-tidy-export-fixes --remote_download_outputs=toplevel
 bazel build //... --config=clang-tidy-export-fixes
 ```
 
-If only a subset of checks needs to be run, those can be specified with `extra-options`.
+If only a subset of checks needs to be run, those can be specified with
+`extra-options`. This flag can be specified multiples times.
 
 ```sh
 bazel build //... --config=clang-tidy-export-fixes \
@@ -160,4 +161,4 @@ set, `clang-apply-replacements` must be in `PATH`. Similarly to
 ## Requirements
 
 - Bazel 5.x
-- ClangTidy ??
+- ClangTidy ?? (at least 14?)
