@@ -127,7 +127,7 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
                 " ".join(kwargs["tidy_options"]),
             ),
             extra_options = sub_outfile(
-                ctx.attr._extra_options[BuildSettingInfo].value,
+                " ".join(ctx.attr._extra_options[BuildSettingInfo].value),
             ),
             infile = source_file.path,
             outfile = out.path,
