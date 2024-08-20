@@ -33,17 +33,18 @@ label_flag(
     build_setting_default = ":default-config",
 )
 
-sh_binary(
-    name = "apply-fixes",
-    srcs = ["apply-fixes.sh"],
-    args = ["$(location :clang-apply-replacements)"],
-    data = [":clang-apply-replacements"],
-)
-
 # Extra options appended after `tidy_options`. This allows extra options to be
 # specified on the command line (e.g. changing the checks to use with
 # `clang-tidy`).
 string_flag(
     name = "extra-options",
     build_setting_default = "",
+)
+
+# Manually applies fixes from .yaml files contained in a specified directory.
+sh_binary(
+    name = "apply-fixes",
+    srcs = ["apply-fixes.sh"],
+    args = ["$(location :clang-apply-replacements)"],
+    data = [":clang-apply-replacements"],
 )

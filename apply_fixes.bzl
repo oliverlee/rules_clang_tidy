@@ -10,37 +10,36 @@ load(":aspects.bzl", "export_fixes")
 def _apply_fixes_impl(ctx):
     desired_deps = ctx.actions.declare_file(ctx.label.name + ".desired_deps")
 
+    # TODO skip this action if `desired_deps` is not set
     ctx.actions.run_shell(
+        inputs = depset(
+            transitive = [
+                ctx.attr._workspace_config.files,
+                ctx.attr._workspace_status.files,
+            ],
+        ),
         outputs = [desired_deps],
-        arguments = [ctx.attr.desired_deps],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
-set -x
 
-output_base="$(pwd)/../.."
+export $(cat {workspace_config} | sed -e 's/ //g' | sed -e 's/\"//g')
 
 # set up symlinks for external workspaces
 
 external_opts=$(mktemp)
 
-find "$output_base/external" -maxdepth 1 -type d \
+find "$BAZEL_EXTERNAL_DIRECTORY" -maxdepth 1 -type d \
   | xargs -I % basename % \
-  | xargs -I % echo "--override_repository=\"%=$output_base/external/%\"" \
+  | xargs -I % echo "--override_repository=\"%=$BAZEL_EXTERNAL_DIRECTORY/%\"" \
   > "$external_opts"
 
-# determine workspace path
+# parse dependency_deps pattern
 
-if [ -f "{package}/BUILD" ]; then
-  build_file="{package}/BUILD"
-else
-  build_file="{package}/BUILD.bazel"
-fi
+output_base=$(mktemp -d)
+desired=$(pwd)/{outfile}
 
-package_build_file_path="$(readlink -f $build_file)"
-workspace_path="${{package_build_file_path%$build_file}}"
-
-cd "$workspace_path"
+cd "$BUILD_WORKSPACE_DIRECTORY"
 
 # TODO avoid Bazel in Bazel
 # https://github.com/bazelbuild/bazel/issues/20447
@@ -48,15 +47,14 @@ cd "$workspace_path"
 {bazel} \
   --noblock_for_lock \
   --max_idle_secs=1 \
-  --output_base="$(mktemp -d)" \
+  --output_base="$output_base" \
   cquery \
   $(cat "$external_opts") \
   --output=starlark \
   --starlark:expr='{starlark_expr}' \
-  -- {pattern} | grep "//" | sort | uniq > {outfile}
+  -- {pattern} | grep "//" | sort | uniq > "$desired"
 
         """.format(
-            package = ctx.label.package,
             bazel = ctx.attr.bazel_bin,
             starlark_expr = (
                 'str(target.label).strip("@") ' +
@@ -65,6 +63,7 @@ cd "$workspace_path"
             ),
             pattern = ctx.attr.desired_deps,
             outfile = desired_deps.path,
+            workspace_config = ctx.attr._workspace_config.files.to_list()[0].path,
         ),
         use_default_shell_env = True,
         mnemonic = "ParseDepsForApplyFixes",
@@ -72,12 +71,31 @@ cd "$workspace_path"
             str(ctx.label).strip("@"),
         ),
         execution_requirements = {
-            # https://github.com/bazelbuild/bazel/issues/21587
-            # https://github.com/bazelbuild/bazel/issues/15516
-            "no-cache": "1",
-            "local": "1",
-            # FIXME
-            # This doesn't re-run if the output is in the action cache
+            # This rule can't run remotely as it should be re-run anytime any
+            # build files change in the consumer workspace. Changes in build
+            # files can potentially change the expansion of wildcards in the
+            # `desired_deps` pattern.
+            #
+            # Detection of a change in the build files is signaled by
+            # `ctx.attr._workspace_status`.
+            #
+            # This action also depends on the following definitions from
+            # `ctx.attr._workspace_config`:
+            # * BAZEL_EXTERNAL_DIRECTORY
+            # * BUILD_WORKSPACE_DIRECTORY
+            #
+            # BUILD_WORKSPACE_DIRECTORY is not defined in env during this
+            # action - it is only available when running the outputs of this
+            # action.
+            #
+            # For more infomation see
+            # https://github.com/bazelbuild/bazel/issues/3041#issuecomment-627728133
+            #
+            # this functionality depends only
+            # https://github.com/bazelbuild/bazel/issues/20952
+            #
+            # https://bazel.build/reference/be/common-definitions#common.tags
+            "no-remote": "1",
         },
     )
 
@@ -188,6 +206,14 @@ apply_fixes = rule(
         "_clang_apply_replacements": attr.label(
             default = Label("//:clang-apply-replacements"),
         ),
+        "_workspace_config": attr.label(
+            default = Label("@local_clang_tidy_workspace_status//:config.bzl"),
+            allow_files = True,
+        ),
+        "_workspace_status": attr.label(
+            default = Label("@local_clang_tidy_workspace_status//:status"),
+            allow_files = True,
+        ),
     },
     executable = True,
     doc = """\
@@ -212,6 +238,9 @@ Args:
        workaround for older versions.
        https://github.com/bazelbuild/bazel/issues/10653
        https://github.com/bazelbuild/bazel/issues/10653#issuecomment-694230015
+
+       Use of this attribute runs a child Bazel process (using `bazel_bin`),
+       which may not have the same configuration as the parent process.
 
     bazel_bin: `string`; default is `bazel`
       Path of the child Bazel process used to parse `desired deps`.
