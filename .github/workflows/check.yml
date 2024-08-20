@@ -1,0 +1,98 @@
+name: check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ "*" ]
+    types: [synchronize, opened, reopened, edited]
+  workflow_dispatch:
+
+jobs:
+  buildifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        run: |
+          bazel run //tools:buildifier.check
+
+  check-tidy:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bazel: latest
+            compiler: clang-18
+            example: misc-unused-alias-decls
+          - bazel: latest
+            compiler: clang-17
+            example: misc-unused-alias-decls
+          - bazel: latest
+            compiler: clang-16
+            example: misc-unused-alias-decls
+          - bazel: latest
+            compiler: clang-15
+            example: misc-unused-alias-decls
+          - bazel: latest
+            compiler: clang-14
+            example: misc-unused-alias-decls
+          - bazel: 7.x
+            compiler: clang-18
+            example: misc-unused-alias-decls
+          - bazel: 6.x
+            compiler: clang-18
+            example: misc-unused-alias-decls
+          - bazel: 5.x
+            compiler: clang-18
+            example: misc-unused-alias-decls
+
+    steps:
+      - name: install ${{ matrix.compiler }}
+        shell: bash
+        run: |
+          set -x
+
+          version=$(echo ${{ matrix.compiler }} | cut -d'-' -f2)
+
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh $version
+          sudo apt-get install -y clang-tidy-$version libc++-$version-dev
+
+          sudo ln -sf $(which clang-tidy-$version) /usr/bin/clang-tidy
+          clang-tidy-$version --version
+
+      - uses: actions/checkout@v4
+
+      - name: run clang-tidy
+        shell: bash
+        env:
+          USE_BAZEL_VERION: ${{ matrix.bazel }}
+          CC: ${{ matrix.compiler }}
+        run: |
+          set -x
+
+          cd example/${{ matrix.example }}
+
+          if [[ "${{ matrix.bazel }}" < 6 ]]; then
+            sed -i '/enable_bzlmod/d' .bazelrc
+          fi
+
+          bazel build \
+            --announce_rc \
+            --config=clang-tidy \
+            --color=yes \
+            //... | tee log || true
+          cat log
+          grep "error: .*${{ matrix.example }}" log
+
+  all:
+    runs-on: ubuntu-latest
+    if: ${{ github.base_ref == 'main' }}
+    needs:
+      - buildifier
+      - check-tidy
+    steps:
+    - run: true
