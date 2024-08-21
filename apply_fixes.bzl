@@ -9,9 +9,10 @@ load("@bazel_skylib//lib:versions.bzl", "versions")
 load("@local_bazel_version//:bazel_version.bzl", "BAZEL_VERSION")
 load(":aspects.bzl", "export_fixes")
 
-def _verify_desired_deps(ctx):
-    desired_deps = ctx.actions.declare_file(ctx.label.name + ".desired_deps")
+def _do_verify_deps(ctx, out):
+    label = str(ctx.label).strip("@").removesuffix(".verify")
 
+    query = ctx.actions.declare_file(ctx.label.name + ".query")
     ctx.actions.run_shell(
         inputs = depset(
             transitive = [
@@ -19,7 +20,7 @@ def _verify_desired_deps(ctx):
                 ctx.attr._workspace_status.files,
             ],
         ),
-        outputs = [desired_deps],
+        outputs = [query],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -38,7 +39,7 @@ find "$BAZEL_EXTERNAL_DIRECTORY" -maxdepth 1 -type d \
 # parse dependency_deps pattern
 
 output_base=$(mktemp -d)
-desired=$(pwd)/{outfile}
+query=$(pwd)/{outfile}
 
 cd "$BUILD_WORKSPACE_DIRECTORY"
 
@@ -50,10 +51,12 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
   --max_idle_secs=1 \
   --output_base="$output_base" \
   cquery \
+  --show_progress=false \
+  --ui_event_filters=-info,-debug \
   $(cat "$external_opts") \
   --output=starlark \
   --starlark:expr='{starlark_expr}' \
-  -- {pattern} | grep "//" | sort | uniq > "$desired"
+  -- {pattern} | grep "//" | sort | uniq > "$query"
 
         """.format(
             bazel = ctx.attr.bazel_bin,
@@ -63,13 +66,13 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
                 'else ""'
             ),
             pattern = ctx.attr.desired_deps,
-            outfile = desired_deps.path,
+            outfile = query.path,
             workspace_config = ctx.attr._workspace_config.files.to_list()[0].path,
         ),
         use_default_shell_env = True,
-        mnemonic = "ParseDepsForApplyFixes",
-        progress_message = "Parsing 'desired_deps' attr of '{}'".format(
-            str(ctx.label).strip("@"),
+        mnemonic = "QueryDepsForApplyFixes",
+        progress_message = "Querying 'desired_deps' attr of '{label}'".format(
+            label = label,
         ),
         execution_requirements = {
             # This rule can't run remotely as it should be re-run anytime any
@@ -100,10 +103,9 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
         },
     )
 
-    verify_file = ctx.actions.declare_file(ctx.label.name + ".verify")
     ctx.actions.run_shell(
-        inputs = depset(direct = [desired_deps]),
-        outputs = [verify_file],
+        inputs = depset(direct = [query]),
+        outputs = [out],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -122,19 +124,19 @@ actual=$(mktemp)
 
 $(for d in {actual_deps}; do echo "$d"; done | sort | uniq > "$actual")
 
-if ! cmp --silent {desired} "$actual"; then
+if ! cmp --silent {query} "$actual"; then
   >&2 color "31;1"  "ERROR:"
   >&2 echo " 'deps' does not match 'desired_deps' '{pattern}'"
   >&2 echo "Update 'deps' of '{target}' to\n"
-  cat {desired} | xargs -I % >&2 echo '"%",'
+  cat {query} | xargs -I % >&2 echo '"%",'
   >&2 echo ""
   exit 1
 fi
 
-touch {verify_file}
+touch {outfile}
         """.format(
-            verify_file = verify_file.path,
-            desired = desired_deps.path,
+            outfile = out.path,
+            query = query.path,
             actual_deps = " ".join([
                 shell.quote(str(d.label).strip("@"))
                 for d in ctx.attr.deps
@@ -144,28 +146,61 @@ touch {verify_file}
         ),
         use_default_shell_env = True,
         mnemonic = "ApplyFixes",
-        progress_message = "Verifying deps of {}".format(ctx.label),
+        progress_message = "Verifying deps of '{label}'".format(
+            label = label,
+        ),
     )
 
-    return verify_file
+    return [DefaultInfo(files = depset([out]))]
+
+def _skip_verify_deps(ctx, out):
+    ctx.actions.write(out, "")
+    return [DefaultInfo(files = depset([out]))]
+
+def _verify_deps_impl(ctx):
+    if ctx.attr.desired_deps and not versions.is_at_least("7.1.0", BAZEL_VERSION):
+        label = str(ctx.label).strip("@").removesuffix(".verify")
+        fail(
+            "\n\nFor rule '{}', ".format(label) +
+            "use of 'desired_deps' requires Bazel 7.1.0 or higher.\n" +
+            "Please remove `desired_deps` or use a newer version of Bazel.\n\n",
+        )
+
+    out = ctx.actions.declare_file(ctx.label.name + ".deps")
+    impl = _do_verify_deps if ctx.attr.desired_deps else _skip_verify_deps
+    return impl(ctx, out)
+
+_verify_deps = rule(
+    implementation = _verify_deps_impl,
+    attrs = {
+        "deps": attr.label_list(
+            providers = [CcInfo],
+        ),
+        "desired_deps": attr.string(),
+        "bazel_bin": attr.string(
+            default = "bazel",
+        ),
+        "_workspace_config": attr.label(
+            default = Label("@local_clang_tidy_workspace_status//:config.bzl"),
+            allow_files = True,
+        ),
+        "_workspace_status": attr.label(
+            default = Label("@local_clang_tidy_workspace_status//:status"),
+            allow_files = True,
+        ),
+    },
+)
 
 def _apply_fixes_impl(ctx):
     apply_bin = ctx.attr._clang_apply_replacements.files_to_run.executable
     depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
     fixes = [f for dep in depsets for f in dep.to_list()]
 
-    if ctx.attr.desired_deps and not versions.is_at_least("7.1.0", BAZEL_VERSION):
-        fail(
-            "\n\nFor rule '{}', ".format(str(ctx.label).strip("@")) +
-            "use of 'desired_deps' requires Bazel 7.1.0 or higher.\n" +
-            "Please remove `desired_deps` or use a newer version of Bazel.\n\n",
-        )
-
     runfiles = ctx.runfiles(
-        files = [apply_bin] + (
-            [_verify_desired_deps(ctx)] if ctx.attr.desired_deps else []
+        files = [apply_bin],
+        transitive_files = depset(
+            transitive = depsets + [ctx.attr.verify.files],
         ),
-        transitive_files = depset(transitive = depsets),
     )
 
     out = ctx.actions.declare_file(ctx.label.name + ".bash")
@@ -201,68 +236,91 @@ done
         executable = out,
     )]
 
-apply_fixes = rule(
+_apply_fixes = rule(
     implementation = _apply_fixes_impl,
     attrs = {
+        "verify": attr.label(),
         "deps": attr.label_list(
             aspects = [export_fixes],
             providers = [CcInfo],
-            doc = """
-            Targets to apply fixes to. Fixes are not applied to files in
-            transitive dependencies.
-            """,
-        ),
-        "desired_deps": attr.string(),
-        "bazel_bin": attr.string(
-            default = "bazel",
+            mandatory = True,
         ),
         "_clang_apply_replacements": attr.label(
             default = Label("//:clang-apply-replacements"),
         ),
-        "_workspace_config": attr.label(
-            default = Label("@local_clang_tidy_workspace_status//:config.bzl"),
-            allow_files = True,
-        ),
-        "_workspace_status": attr.label(
-            default = Label("@local_clang_tidy_workspace_status//:status"),
-            allow_files = True,
-        ),
     },
     executable = True,
-    doc = """\
-Defines an executable rule to run ClangTidy and then apply fixes.
-
-Args:
-    name: `string`
-        rule name
-
-    deps: `label_list`
-        List of targets to apply fixes to. Fixes are applied to files in
-        the `hdrs` or `srcs` attributes.
-
-    desired_deps: `string`; or `None`; default is `None`
-       Desired labels to apply fixes to. Allows wildcards. Does not allow
-       workspace specification (all labels are within the current workspace).
-
-       If the targets specified by this attribute (with a CcInfo provider)
-       does not match the deps attribute, this rule will fail with an error.
-
-       Use of this attribute runs a child Bazel process (using `bazel_bin`),
-       which may not have the same configuration as the parent process.
-
-    bazel_bin: `string`; default is `bazel`
-      Path of the child Bazel process used to parse `desired deps`.
-
-```bzl
-load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
-
-apply_fixes(
-    name = "apply-fixes",
-    deps = [
-        ...
-    ],
-    desired_deps = "//...",
 )
-```
-    """,
-)
+
+def apply_fixes(
+        name = None,
+        deps = None,
+        desired_deps = None,
+        bazel_bin = "bazel",
+        **kwargs):
+    """
+    Defines an executable rule to run ClangTidy and then apply fixes.
+
+    Args:
+        name: `string`
+            rule name
+
+        deps: `label_list`
+            List of targets to apply fixes to. Fixes are applied to files in
+            the `hdrs` or `srcs` attributes.
+
+        desired_deps: `string`; or `None`; default is `None`
+            Desired labels to apply fixes to. Allows wildcards. Does not allow
+            workspace specification (all labels are within the current
+            workspace).
+
+            If the targets specified by this attribute (with a CcInfo provider)
+            does not match the deps attribute, this rule will fail with an
+            error.
+
+            Use of this attribute runs a child Bazel process (using
+            `bazel_bin`), which may not have the same configuration as the
+            parent process.
+
+            Note that the following issue is may still present. `.bazelignore`
+            can be defined ignore convenience symlinks.
+            https://github.com/bazelbuild/bazel/issues/10653
+
+        bazel_bin: `string`; default is `bazel`
+            Path of the child Bazel process used to parse `desired deps`.
+
+        **kwargs:
+            Other arguments passed to the executable rule.
+
+    ```bzl
+    load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+    apply_fixes(
+        name = "apply-fixes",
+        deps = [
+            ...
+        ],
+        desired_deps = "//...",
+    )
+    ```
+    """
+    _verify_deps(
+        name = name + ".verify",
+        deps = deps,
+        desired_deps = desired_deps,
+        bazel_bin = bazel_bin,
+        visibility = ["//visibility:private"],
+    )
+
+    tags = kwargs.pop("tags", [])
+
+    if not "manual" in tags:
+        tags.append("manual")
+
+    _apply_fixes(
+        name = name,
+        verify = name + ".verify",
+        deps = deps,
+        tags = tags,
+        **kwargs
+    )

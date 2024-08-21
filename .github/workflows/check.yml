@@ -129,6 +129,71 @@ jobs:
             misc-unused-alias-decls.cpp \
             misc-unused-alias-decls.cpp.fixed
 
+  apply-fixes-rule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install clang
+        uses: ./.github/actions/setup-env
+
+      - name: apply fixes
+        shell: bash
+        run: |
+          set -x
+
+          cd example
+
+          bazel build \
+            --announce_rc \
+            --color=yes \
+            //...
+
+          ! cmp \
+            misc-unused-alias-decls.cpp \
+            misc-unused-alias-decls.cpp.fixed
+
+          # linting delayed until this binary explicitly built/run
+          bazel run //:apply-fixes | tee log
+
+          grep "warning: .*misc-unused-alias-decls" log
+
+          diff \
+            --color=always \
+            --report-identical-files \
+            misc-unused-alias-decls.cpp \
+            misc-unused-alias-decls.cpp.fixed
+
+  apply-fixes-desired-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install clang
+        uses: ./.github/actions/setup-env
+
+      - name: apply fixes
+        shell: bash
+        run: |
+          set -x
+
+          cd example
+
+          bazel build \
+            --announce_rc \
+            --color=yes \
+            //...
+
+          echo 'cc_library(name = "a")' >> BUILD.bazel
+
+          # desired_deps checked at build
+          bazel build \
+            --announce_rc \
+            --color=yes \
+            //... 2>&1 | tee log || true
+
+          grep "ERROR.* 'deps' does not match 'desired_deps'" log
+
   all:
     runs-on: ubuntu-latest
     if: ${{ github.base_ref == 'main' }}
@@ -137,5 +202,7 @@ jobs:
       - check-tidy-matrix
       - check-tidy-extra-options
       - apply-fixes-script
+      - apply-fixes-rule
+      - apply-fixes-desired-deps
     steps:
     - run: true
