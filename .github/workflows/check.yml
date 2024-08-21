@@ -136,5 +136,6 @@ jobs:
       - buildifier
       - check-tidy-matrix
       - check-tidy-extra-options
+      - apply-fixes-script
     steps:
     - run: true

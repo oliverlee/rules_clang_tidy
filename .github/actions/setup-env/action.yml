@@ -17,11 +17,15 @@ runs:
         sudo ./llvm.sh ${{ inputs.clang }}
         sudo apt-get install -y \
           clang-tidy-${{ inputs.clang }} \
+          clang-tools-${{ inputs.clang }} \
           libc++-${{ inputs.clang }}-dev
 
         sudo ln -sf $(which clang-${{ inputs.clang }}) /usr/bin/clang
         sudo ln -sf $(which clang-tidy-${{ inputs.clang }}) /usr/bin/clang-tidy
+        sudo ln -sf $(which clang-apply-replacements-${{ inputs.clang }}) \
+          /usr/bin/clang-apply-replacements
 
         clang --version
         clang-tidy --version
+        clang-apply-replacements --version
 
