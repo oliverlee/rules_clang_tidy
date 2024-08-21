@@ -67,12 +67,10 @@ def _setup_status_file(rctx):
 set -euo pipefail
 
 build_files=$(find {workspace} \
-  $(cat "$workspace/.bazelignore" 2> /dev/null | xargs -I % echo "-not ( -path {workspace}/% -prune )") \
+  $(cat "{workspace}/.bazelignore" 2> /dev/null | xargs -I % echo "-not ( -path {workspace}/% -prune )") \
   -type f \( \
     -name "BUILD" -o \
-    -name "BUILD.bazel" -o \
-    -name "WORKSPACE" -o \
-    -name "WORKSPACE.bazel" \
+    -name "BUILD.bazel" \
   \) \
   | sort \
 )
