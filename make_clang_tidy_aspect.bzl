@@ -7,6 +7,7 @@ different configurations or verbosity).
 load("@bazel_skylib//rules:common_settings.bzl", "BuildSettingInfo")
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_TYPE")
+load("//private:functional.bzl", fn = "functional")
 
 def _source_files_in(ctx, attr):
     if not hasattr(ctx.rule.attr, attr):
@@ -19,21 +20,19 @@ def _source_files_in(ctx, attr):
     return files
 
 def _compilation_ctx_args(compilation_ctx):
-    map = lambda f, attr: [
-        f(x)
-        for x in getattr(compilation_ctx, attr).to_list()
-    ]
-
-    prefix = lambda p: lambda s: p + s
+    prepend = lambda front, attr: fn.map(
+        fn.bind_front(fn.add, front),
+        getattr(compilation_ctx, attr).to_list(),
+    )
 
     return (
-        map(prefix("-D"), "defines") +
-        map(prefix("-isystem"), "external_includes") +
-        map(prefix("-F"), "framework_includes") +
-        map(prefix("-I"), "includes") +
-        map(prefix("-D"), "local_defines") +
-        map(prefix("-iquote"), "quote_includes") +
-        map(prefix("-isystem"), "system_includes")
+        prepend("-D", "defines") +
+        prepend("-isystem", "external_includes") +
+        prepend("-F", "framework_includes") +
+        prepend("-I", "includes") +
+        prepend("-D", "local_defines") +
+        prepend("-iquote", "quote_includes") +
+        prepend("-isystem", "system_includes")
     )
 
 def _clang_stdlib_sort(paths):
@@ -86,7 +85,21 @@ def _toolchain_args(ctx):
 
 def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
     clang_tidy = ctx.attr._clang_tidy.files_to_run.executable
-    out = ctx.actions.declare_file(source_file.short_path + ".clang-tidy.yaml")
+
+    sanitize = lambda s: "".join(fn.filter(
+        lambda c: not c in ["@", "/", ":", "%"],
+        s.elems(),
+    )).replace(".bzl", "", 1)
+
+    # This output file may be used by clang-apply-replacements which requires a
+    # yaml extension.
+    out = ctx.actions.declare_file(
+        ".".join([
+            source_file.short_path,
+            "_".join(fn.map(sanitize, ctx.aspect_ids)),
+            "yaml",
+        ]),
+    )
 
     sub_outfile = lambda s: s.replace("$@", out.path)
 
