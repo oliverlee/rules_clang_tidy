@@ -27,6 +27,9 @@ def _add(head, *tail):
 def _bind_front(f, *front):
     return lambda *back: f(*(tuple(front) + tuple(back)))
 
+def _empty(x):
+    return not len(x)
+
 functional = struct(
     map = _map,
     filter = _filter,
@@ -34,4 +37,5 @@ functional = struct(
     left_fold = _left_fold,
     add = _add,
     bind_front = _bind_front,
+    empty = _empty,
 )
