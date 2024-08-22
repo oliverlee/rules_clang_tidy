@@ -1,0 +1,10 @@
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+apply_fixes(
+    name = "build_fail",
+    deps = [
+        "//:bar",
+        "//:baz",  # doesn't exist
+        "//:foo",
+    ],
+)

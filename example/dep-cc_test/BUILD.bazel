@@ -1,0 +1,17 @@
+cc_binary(
+    name = "foo",
+    srcs = ["foo.cpp"],
+    visibility = [
+        "//fail:__pkg__",
+        "//pass:__pkg__",
+    ],
+)
+
+cc_test(
+    name = "bar",
+    srcs = ["bar.cpp"],
+    visibility = [
+        "//fail:__pkg__",
+        "//pass:__pkg__",
+    ],
+)

@@ -25,6 +25,8 @@ tidy_test(name = "check_misc-unused_test")
 
 tidy_test(name = "check_extra-options_test")
 
+tidy_test(name = "check_cc_test-deps_test")
+
 tidy_test(name = "fix_script_test")
 
 tidy_test(name = "fix_rule_test")
