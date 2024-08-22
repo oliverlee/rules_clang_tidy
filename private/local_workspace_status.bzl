@@ -107,20 +107,8 @@ workspace(name = {name})
     rctx.file(
         "BUILD.bazel",
         content = """\
-exports_files(["config.bzl", "status"])
+exports_files(["status"])
         """,
-        executable = False,
-    )
-
-    rctx.file(
-        "config.bzl",
-        content = """
-BAZEL_EXTERNAL_DIRECTORY = "{external_dir}"
-BUILD_WORKSPACE_DIRECTORY = "{workspace_root}"
-""".format(
-            external_dir = str(rctx.path(".").realpath).removesuffix("/" + rctx.name),
-            workspace_root = rctx.workspace_root,
-        ),
         executable = False,
     )
 

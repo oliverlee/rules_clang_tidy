@@ -16,7 +16,7 @@ def _do_verify_deps(ctx, out):
     ctx.actions.run_shell(
         inputs = depset(
             transitive = [
-                ctx.attr._workspace_config.files,
+                ctx.attr._workspace_directories.files,
                 ctx.attr._workspace_status.files,
             ],
         ),
@@ -25,7 +25,7 @@ def _do_verify_deps(ctx, out):
 #!/usr/bin/env bash
 set -euo pipefail
 
-export $(cat {workspace_config} | sed -e 's/ //g' | sed -e 's/\"//g')
+export $(cat {workspace_directories} | sed -e 's/ //g' | sed -e 's/\"//g')
 
 # set up symlinks for external workspaces
 
@@ -67,7 +67,7 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
             ),
             pattern = ctx.attr.desired_deps,
             outfile = query.path,
-            workspace_config = ctx.attr._workspace_config.files.to_list()[0].path,
+            workspace_directories = ctx.attr._workspace_directories.files.to_list()[0].path,
         ),
         use_default_shell_env = True,
         mnemonic = "QueryDepsForApplyFixes",
@@ -84,7 +84,7 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
             # `ctx.attr._workspace_status`.
             #
             # This action also depends on the following definitions from
-            # `ctx.attr._workspace_config`:
+            # `ctx.attr._workspace_directories`:
             # * BAZEL_EXTERNAL_DIRECTORY
             # * BUILD_WORKSPACE_DIRECTORY
             #
@@ -180,8 +180,8 @@ _verify_deps = rule(
         "bazel_bin": attr.string(
             default = "bazel",
         ),
-        "_workspace_config": attr.label(
-            default = Label("@local_clang_tidy_workspace_status//:config.bzl"),
+        "_workspace_directories": attr.label(
+            default = Label("@local_workspace_directories//:defs.bzl"),
             allow_files = True,
         ),
         "_workspace_status": attr.label(

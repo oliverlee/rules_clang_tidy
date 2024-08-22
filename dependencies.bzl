@@ -5,6 +5,7 @@ User setup functions for dependencies
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 load("//private:local_bazel_version.bzl", "local_bazel_version")
+load("//private:local_workspace_directories.bzl", "local_workspace_directories")
 load("//private:local_workspace_status.bzl", "local_workspace_status")
 
 def rules_clang_tidy_dependencies():
@@ -20,6 +21,10 @@ def rules_clang_tidy_dependencies():
 
     local_bazel_version(
         name = "local_bazel_version",
+    )
+
+    local_workspace_directories(
+        name = "local_workspace_directories",
     )
 
     local_workspace_status(
