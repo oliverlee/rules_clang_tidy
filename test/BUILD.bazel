@@ -1,0 +1,32 @@
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load(
+    "@local_workspace_directories//:defs.bzl",
+    "BAZEL_EXTERNAL_DIRECTORY",
+    "BUILD_WORKSPACE_DIRECTORY",
+)
+load(":tidy_test.bzl", "tidy_test")
+
+expand_template(
+    name = "gen-prelude",
+    out = "prelude.bash",
+    substitutions = {
+        "$BAZEL_EXTERNAL_DIRECTORY": BAZEL_EXTERNAL_DIRECTORY,
+        "$BUILD_WORKSPACE_DIRECTORY": BUILD_WORKSPACE_DIRECTORY,
+    },
+    template = "prelude.template.bash",
+)
+
+sh_library(
+    name = "prelude",
+    srcs = ["prelude.bash"],
+)
+
+tidy_test(name = "check_misc-unused_test")
+
+tidy_test(name = "check_extra-options_test")
+
+tidy_test(name = "fix_script_test")
+
+tidy_test(name = "fix_rule_test")
+
+tidy_test(name = "fix_desired-deps_test")
