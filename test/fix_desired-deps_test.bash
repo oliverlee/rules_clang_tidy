@@ -13,15 +13,15 @@ cat "$test_bazelrc" >> .bazelrc
 
 # build everything
 bazel \
-    build \
-    //...
+  build \
+  //...
 
 # add a new target
 echo 'cc_library(name = "a")' >> BUILD.bazel
 
 # rebuild detects stale deps attr
 bazel \
-    build \
-    //... 2>&1 | tee log || true
+  build \
+  //... 2>&1 | tee log || true
 
 grep "ERROR.* 'deps' does not match 'desired_deps'" log

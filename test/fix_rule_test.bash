@@ -13,8 +13,8 @@ cat "$test_bazelrc" >> .bazelrc
 
 # build everything
 bazel \
-    build \
-    //...
+  build \
+  //...
 
 # apply fixes target not run
 ! cmp \
@@ -23,13 +23,13 @@ bazel \
 
 # linting delayed until this binary is explicitly built/run
 bazel \
-    run \
-    //:apply-fixes | tee "$log"
+  run \
+  //:apply-fixes | tee "$log"
 
 grep "warning: .*misc-unused-alias-decls" "$log"
 
 diff \
-    --color=always \
-    --report-identical-files \
-    misc-unused-alias-decls.cpp \
-    misc-unused-alias-decls.cpp.fixed
+  --color=always \
+  --report-identical-files \
+  misc-unused-alias-decls.cpp \
+  misc-unused-alias-decls.cpp.fixed

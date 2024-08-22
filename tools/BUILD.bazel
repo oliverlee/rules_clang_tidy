@@ -1,4 +1,6 @@
 load("@buildifier_prebuilt//:rules.bzl", "buildifier")
+load("@local_workspace_directories//:defs.bzl", "BUILD_WORKSPACE_DIRECTORY")
+load("@rules_multirun//:defs.bzl", "multirun")
 
 buildifier(
     name = "buildifier.check",
@@ -10,4 +12,50 @@ buildifier(
     name = "buildifier.fix",
     lint_mode = "warn",
     mode = "fix",
+)
+
+_shfmt_opts = [
+    "--simplify",
+    "--indent",
+    "2",
+    "--binary-next-line",
+    "--case-indent",
+    "--space-redirects",
+    "--func-next-line",
+    BUILD_WORKSPACE_DIRECTORY,
+]
+
+sh_binary(
+    name = "shfmt.check",
+    srcs = ["@shfmt//file"],
+    args = [
+        "--diff",
+    ] + _shfmt_opts,
+)
+
+sh_binary(
+    name = "shfmt.fix",
+    srcs = ["@shfmt//file"],
+    args = [
+        "--list",
+        "--write",
+    ] + _shfmt_opts,
+)
+
+multirun(
+    name = "format.check",
+    commands = [
+        ":buildifier.check",
+        ":shfmt.check",
+    ],
+    jobs = 0,
+)
+
+multirun(
+    name = "format.fix",
+    commands = [
+        ":buildifier.fix",
+        ":shfmt.fix",
+    ],
+    jobs = 0,
 )

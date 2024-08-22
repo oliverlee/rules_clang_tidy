@@ -11,8 +11,8 @@ function symlink_externals
     | xargs -I {} basename {} \
     | grep -v -e "^local_" \
     | xargs -I {} ln -s \
-            "$BAZEL_EXTERNAL_DIRECTORY/{}" \
-            "$output_base/external/{}"
+      "$BAZEL_EXTERNAL_DIRECTORY/{}" \
+      "$output_base/external/{}"
 }
 
 function output_base
@@ -22,11 +22,11 @@ function output_base
 
 function common_setup
 {
-    log=$(mktemp)
-    test_bazelrc=$(mktemp)
-    output_base="$TEST_TMPDIR"
+  log=$(mktemp)
+  test_bazelrc=$(mktemp)
+  output_base="$TEST_TMPDIR"
 
-    cat > $test_bazelrc <<EOF
+  cat > $test_bazelrc << EOF
 startup --noblock_for_lock
 startup --max_idle_secs=1
 startup --output_base=$output_base
@@ -38,23 +38,23 @@ build --show_timestamps
 build --experimental_convenience_symlinks=ignore
 EOF
 
-    symlink_externals "$output_base"
+  symlink_externals "$output_base"
 }
 
 function check_setup
 {
-    common_setup
+  common_setup
 
-    cd "$BUILD_WORKSPACE_DIRECTORY/$1"
+  cd "$BUILD_WORKSPACE_DIRECTORY/$1"
 }
 
 function fix_setup
 {
-    common_setup
+  common_setup
 
-    cp -r "$BUILD_WORKSPACE_DIRECTORY/$1" temp
+  cp -r "$BUILD_WORKSPACE_DIRECTORY/$1" temp
 
-    echo "common --override_repository=rules_clang_tidy=$BUILD_WORKSPACE_DIRECTORY" >> "$test_bazelrc"
+  echo "common --override_repository=rules_clang_tidy=$BUILD_WORKSPACE_DIRECTORY" >> "$test_bazelrc"
 
-    cd temp
+  cd temp
 }
