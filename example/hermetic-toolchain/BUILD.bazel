@@ -1,0 +1,13 @@
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+cc_binary(
+    name = "misc-unused-alias-decls",
+    srcs = ["misc-unused-alias-decls.cpp"],
+)
+
+apply_fixes(
+    name = "apply-fixes",
+    deps = [
+        ":misc-unused-alias-decls",
+    ],
+)
