@@ -5,7 +5,7 @@ build --color=yes
 build --curses=no
 build --show_timestamps
 
-test --test_output=error
+test --test_output=errors
 test --test_verbose_timeout_warnings
 
 try-import %workspace%/user.bazelrc
