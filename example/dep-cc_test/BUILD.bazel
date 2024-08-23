@@ -1,3 +1,5 @@
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
 cc_binary(
     name = "foo",
     srcs = ["foo.cpp"],
@@ -13,5 +15,13 @@ cc_test(
     visibility = [
         "//fail:__pkg__",
         "//pass:__pkg__",
+    ],
+)
+
+apply_fixes(
+    name = "build_pass",
+    deps = [
+        "//:bar",
+        "//:foo",
     ],
 )

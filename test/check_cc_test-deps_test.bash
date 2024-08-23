@@ -12,7 +12,7 @@ unset TEST_TMPDIR
 bazel \
   --bazelrc="$test_bazelrc" \
   build \
-  //pass/...
+  //pass/... //:build_pass
 
 bazel \
   --bazelrc="$test_bazelrc" \
