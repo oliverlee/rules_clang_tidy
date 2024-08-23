@@ -7,6 +7,7 @@ multiple times to a header when running on multiple targets.
 load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@bazel_skylib//lib:versions.bzl", "versions")
 load("@local_bazel_version//:bazel_version.bzl", "BAZEL_VERSION")
+load("//private:functional.bzl", fn = "functional")
 load(":aspects.bzl", "export_fixes")
 
 def _do_verify_deps(ctx, out):
@@ -103,6 +104,17 @@ cd "$BUILD_WORKSPACE_DIRECTORY"
         },
     )
 
+    def _deduced_label(s):
+        label = str(Label(s))
+
+        def _implicit_workspace(x):
+            idx = x.find("//")
+            return idx < 1 or fn.empty(x[:idx].strip("@"))
+
+        return (
+            fn.add(*(label.rpartition("//")[-2:])) if _implicit_workspace(s) else label
+        )
+
     ctx.actions.run_shell(
         inputs = depset(direct = [query]),
         outputs = [out],
@@ -138,7 +150,7 @@ touch {outfile}
             outfile = out.path,
             query = query.path,
             actual_deps = " ".join([
-                shell.quote(str(d.label).strip("@"))
+                shell.quote(_deduced_label(d))
                 for d in ctx.attr.deps
             ]),
             pattern = ctx.attr.desired_deps,
@@ -173,9 +185,8 @@ def _verify_deps_impl(ctx):
 _verify_deps = rule(
     implementation = _verify_deps_impl,
     attrs = {
-        "deps": attr.label_list(
-            providers = [CcInfo],
-        ),
+        # avoid using a label_list in case some deps are test targets
+        "deps": attr.string_list(),
         "desired_deps": attr.string(),
         "bazel_bin": attr.string(
             default = "bazel",
@@ -282,8 +293,8 @@ def apply_fixes(
             `bazel_bin`), which may not have the same configuration as the
             parent process.
 
-            Note that the following issue is may still present. `.bazelignore`
-            can be defined ignore convenience symlinks.
+            Note that the following issue may still present. `.bazelignore`
+            can be defined to ignore convenience symlinks.
             https://github.com/bazelbuild/bazel/issues/10653
 
         bazel_bin: `string`; default is `bazel`
@@ -304,6 +315,21 @@ def apply_fixes(
     )
     ```
     """
+
+    # Create a test target that depends on deps. We need to use a test target
+    # in case any deps are tests. We use this to check that all deps are valid
+    # targets, which otherwise will not happen at build time. The <name>.verify
+    # target takes deps as a string_list and the <name> target is tagged manual.
+    #
+    #
+    # https://github.com/bazelbuild/bazel/issues/6842
+    # https://github.com/bazelbuild/bazel/issues/14294
+    native.sh_test(
+        name = name + ".dummy",
+        srcs = [Label("//private:true.bash")],
+        data = deps,
+    )
+
     _verify_deps(
         name = name + ".verify",
         deps = deps,

@@ -1,0 +1,9 @@
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+apply_fixes(
+    name = "build_pass",
+    deps = [
+        "//:bar",
+        "//:foo",
+    ],
+)

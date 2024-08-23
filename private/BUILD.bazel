@@ -1,0 +1,4 @@
+exports_files(
+    ["true.bash"],
+    visibility = ["//visibility:public"],
+)
