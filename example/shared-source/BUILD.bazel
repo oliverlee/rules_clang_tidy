@@ -1,0 +1,19 @@
+load("@rules_clang_tidy//:defs.bzl", "apply_fixes")
+
+cc_binary(
+    name = "a",
+    srcs = ["main.cpp"],
+)
+
+cc_binary(
+    name = "b",
+    srcs = ["main.cpp"],
+)
+
+apply_fixes(
+    name = "c",
+    deps = [
+        ":a",
+        ":b",
+    ],
+)

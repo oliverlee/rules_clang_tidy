@@ -56,3 +56,5 @@ load("//private:local_example_status.bzl", "local_example_status")
 local_example_status(name = "misc-unused")
 
 local_example_status(name = "dep-cc_test")
+
+local_example_status(name = "shared-source")
