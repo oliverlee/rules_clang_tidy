@@ -2,3 +2,9 @@ exports_files(
     ["true.bash"],
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "files",
+    srcs = glob(["*"]),
+    visibility = ["//test:__pkg__"],
+)
