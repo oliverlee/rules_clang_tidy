@@ -50,3 +50,8 @@ tidy_test(
     name = "fix_desired-deps_test",
     example_external = "dep-cc_test",
 )
+
+tidy_test(
+    name = "fix_shared-source_test",
+    example_external = "shared-source",
+)
