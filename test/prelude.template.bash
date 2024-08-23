@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-function symlink_externals
+function override_externals
 {
-  local output_base="$1"
+  function override_repository
+  {
+    local external="${1#$BAZEL_EXTERNAL_DIRECTORY/}"
+    echo "build --override_repository=$external=$1"
+  }
+
+  export -f override_repository
+
+  local bazelrc="$1"
+  local output_base="$2"
 
   mkdir "$output_base/external"
 
   find "$BAZEL_EXTERNAL_DIRECTORY" -maxdepth 1 -type d \
-    | xargs -I {} basename {} \
-    | grep -v -e "^local_" \
-    | xargs -I {} ln -s \
-      "$BAZEL_EXTERNAL_DIRECTORY/{}" \
-      "$output_base/external/{}"
+    | grep -e "$BAZEL_EXTERNAL_DIRECTORY/" \
+    | grep -v -e "$BAZEL_EXTERNAL_DIRECTORY/local_" \
+    | xargs -n1 bash -c "echo \"\$(override_repository \"\$1\")\" >> $bazelrc" bash
 }
 
 function output_base
@@ -38,7 +45,7 @@ build --show_timestamps
 build --experimental_convenience_symlinks=ignore
 EOF
 
-  symlink_externals "$output_base"
+  override_externals "$test_bazelrc" "$output_base"
 }
 
 function check_setup
