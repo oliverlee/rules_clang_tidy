@@ -10,9 +10,9 @@ check_setup example/misc-unused
 unset TEST_TMPDIR
 
 bazel \
-    --bazelrc="$test_bazelrc" \
-    build \
-    --config=clang-tidy \
-    //... | tee "$log" || true
+  --bazelrc="$test_bazelrc" \
+  build \
+  --config=clang-tidy \
+  //... | tee "$log" || true
 
 grep "error: .*misc-unused-alias-decls" "$log"
