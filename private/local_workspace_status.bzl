@@ -57,9 +57,11 @@ def _setup_status_file(rctx):
     This status file is updated whenever any build files change.
     """
 
+    root = rctx.workspace_root.get_child(rctx.attr.root_relpath)
+
     # https://github.com/bazelbuild/bazel/issues/20952
     # https://github.com/bazelbuild/bazel/issues/20363
-    rctx.watch_tree(rctx.workspace_root)
+    rctx.watch_tree(root)
 
     rctx.file(
         "workspace-status.bash",
@@ -68,16 +70,14 @@ set -euo pipefail
 
 build_files=$(find {workspace} \
   $(cat "{workspace}/.bazelignore" 2> /dev/null | xargs -I % echo "-not ( -path {workspace}/% -prune )") \
-  -type f \( \
-    -name "BUILD" -o \
-    -name "BUILD.bazel" \
-  \) \
+  {expression} \
   | sort \
 )
 
 echo "$build_files" | xargs -I % cat % | md5sum
         """.format(
-            workspace = rctx.workspace_root,
+            workspace = root,
+            expression = rctx.attr.find_expr,
         ),
         executable = True,
     )
@@ -124,4 +124,18 @@ exports_files(["status"])
 local_workspace_status = repository_rule(
     implementation = _local_workspace_status_impl,
     local = True,
+    attrs = {
+        "root_relpath": attr.string(
+            doc = """
+            Workspace subdirectory to watch.
+            """,
+        ),
+        "find_expr": attr.string(
+            default = r"-type f \( -name BUILD -o -name BUILD.bazel \)",
+            doc = """
+            Expression to pass to `find` to calculate the status hash. Relative
+            to `root_relpath`.
+            """,
+        ),
+    },
 )

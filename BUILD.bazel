@@ -44,7 +44,19 @@ extra_options_flag(
 # Manually applies fixes from .yaml files contained in a specified directory.
 sh_binary(
     name = "apply-fixes",
-    srcs = ["apply-fixes.sh"],
+    srcs = ["apply-fixes.bash"],
     args = ["$(location :clang-apply-replacements)"],
     data = [":clang-apply-replacements"],
+)
+
+# export such that files can manually be added as test dependencies
+filegroup(
+    name = "files",
+    srcs = [
+        "apply-fixes.bash",
+        "apply_fixes.bzl",
+        "defs.bzl",
+        "make_clang_tidy_aspect.bzl",
+    ],
+    visibility = ["//test:__pkg__"],
 )

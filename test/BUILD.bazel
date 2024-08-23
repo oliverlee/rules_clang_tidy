@@ -21,14 +21,32 @@ sh_library(
     srcs = ["prelude.bash"],
 )
 
-tidy_test(name = "check_misc-unused_test")
+tidy_test(
+    name = "check_misc-unused_test",
+    example_external = "misc-unused",
+)
 
-tidy_test(name = "check_extra-options_test")
+tidy_test(
+    name = "check_extra-options_test",
+    example_external = "misc-unused",
+)
 
-tidy_test(name = "check_cc_test-deps_test")
+tidy_test(
+    name = "check_cc_test-deps_test",
+    example_external = "misc-unused",
+)
 
-tidy_test(name = "fix_script_test")
+tidy_test(
+    name = "fix_script_test",
+    example_external = "misc-unused",
+)
 
-tidy_test(name = "fix_rule_test")
+tidy_test(
+    name = "fix_rule_test",
+    example_external = "misc-unused",
+)
 
-tidy_test(name = "fix_desired-deps_test")
+tidy_test(
+    name = "fix_desired-deps_test",
+    example_external = "dep-cc_test",
+)
