@@ -6,7 +6,9 @@ def tidy_test(
         name = None,
         srcs = None,
         env = {"CC": "clang"},
-        tags = {"no-remote": ""},
+        tags = {
+            "external": "",
+        },
         deps = [":prelude"],
         timeout = "short",
         size = "small",
