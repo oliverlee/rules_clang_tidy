@@ -51,6 +51,30 @@ http_archive(
     url = "https://github.com/keith/rules_multirun/releases/download/0.9.0/rules_multirun.0.9.0.tar.gz",
 )
 
+http_archive(
+    name = "toolchains_llvm",
+    canonical_id = "v1.1.2",
+    sha256 = "c304fc9286c6fa2acb6dcea8961dc0d526a076f8cb64da4763c36aebcf5cff56",
+    strip_prefix = "toolchains_llvm-v1.1.2",
+    url = "https://github.com/bazel-contrib/toolchains_llvm/releases/download/v1.1.2/toolchains_llvm-v1.1.2.tar.gz",
+)
+
+load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
+
+bazel_toolchain_dependencies()
+
+load("@toolchains_llvm//toolchain:rules.bzl", "llvm_toolchain")
+
+llvm_toolchain(
+    name = "llvm_toolchain",
+    llvm_version = "16.0.0",
+)
+
+# Skip toolchain registration as this isn't used directly. We define the
+# toolchain here to add it as a test dependency so that it is fetched before
+# running the test. Once the test starts, the toolchain external is symlinked
+# instead of being downloaded within the test.
+
 load("//private:local_example_status.bzl", "local_example_status")
 
 local_example_status(name = "misc-unused")
@@ -58,3 +82,5 @@ local_example_status(name = "misc-unused")
 local_example_status(name = "dep-cc_test")
 
 local_example_status(name = "shared-source")
+
+local_example_status(name = "hermetic-toolchain")

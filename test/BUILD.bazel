@@ -55,3 +55,19 @@ tidy_test(
     name = "fix_shared-source_test",
     example_external = "shared-source",
 )
+
+tidy_test(
+    name = "check_hermetic-toolchain_test",
+    data = [
+        "@llvm_toolchain//:clang-tidy",
+    ],
+    example_external = "hermetic-toolchain",
+)
+
+tidy_test(
+    name = "fix_hermetic-toolchain_test",
+    data = [
+        "@llvm_toolchain//:clang-tidy",
+    ],
+    example_external = "hermetic-toolchain",
+)

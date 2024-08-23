@@ -35,33 +35,6 @@ def _compilation_ctx_args(compilation_ctx):
         prepend("-isystem", "system_includes")
     )
 
-def _clang_stdlib_sort(paths):
-    # Try and sort paths such that C++ Standard Library headers come before
-    # C Standard Library headers.
-
-    def is_lib_clang_path(p):
-        stems = p.rsplit("/", 4)
-        return (
-            len(stems) == 4 and
-            stems[0] == "lib" and
-            stems[1] == "clang" and
-            stems[3] in ["include", "share"]
-        )
-
-    maybe_libcpp = lambda p: (
-        p.rstrip("/").endswith("/c++/v1") or
-        is_lib_clang_path(p.rstrip("/"))
-    )
-
-    front, back = [], []
-    for p in paths:
-        if maybe_libcpp(p):
-            front.append(p)
-        else:
-            back.append(p)
-
-    return front + back
-
 def _toolchain_args(ctx):
     cc_toolchain = ctx.toolchains[CC_TOOLCHAIN_TYPE].cc
 
@@ -74,10 +47,7 @@ def _toolchain_args(ctx):
         cc_toolchain = cc_toolchain,
         user_compile_flags = ctx.fragments.cpp.cxxopts + ctx.fragments.cpp.copts,
     )
-    return [
-        "-isystem" + d
-        for d in _clang_stdlib_sort(cc_toolchain.built_in_include_directories)
-    ] + cc_common.get_memory_inefficient_command_line(
+    return cc_common.get_memory_inefficient_command_line(
         feature_configuration = feature_configuration,
         action_name = ACTION_NAMES.cpp_compile,
         variables = compile_variables,

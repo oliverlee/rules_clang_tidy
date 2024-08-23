@@ -43,6 +43,7 @@ build --color=yes
 build --curses=no
 build --show_timestamps
 build --experimental_convenience_symlinks=ignore
+build --verbose_failures
 EOF
 
   override_externals "$test_bazelrc" "$output_base"
