@@ -343,6 +343,8 @@ def apply_fixes(
     if not "manual" in tags:
         tags.append("manual")
 
+    kwargs = {"testonly": True} | kwargs
+
     _apply_fixes(
         name = name,
         verify = name + ".verify",
