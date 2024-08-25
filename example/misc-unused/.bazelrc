@@ -6,6 +6,3 @@ build --symlink_prefix=/
 build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
 build:clang-tidy --output_groups=report
 
-build:clang-tidy-export-fixes --aspects=@rules_clang_tidy//:aspects.bzl%export_fixes
-build:clang-tidy-export-fixes --output_groups=report
-

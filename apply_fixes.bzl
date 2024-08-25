@@ -8,7 +8,7 @@ load("@bazel_skylib//lib:shell.bzl", "shell")
 load("@bazel_skylib//lib:versions.bzl", "versions")
 load("@local_bazel_version//:bazel_version.bzl", "BAZEL_VERSION")
 load("//private:functional.bzl", fn = "functional")
-load(":aspects.bzl", "export_fixes")
+load(":aspects.bzl", "check")
 
 def _do_verify_deps(ctx, out):
     label = str(ctx.label).strip("@").removesuffix(".verify")
@@ -204,7 +204,7 @@ _verify_deps = rule(
 
 def _apply_fixes_impl(ctx):
     apply_bin = ctx.attr._clang_apply_replacements.files_to_run.executable
-    depsets = [dep[OutputGroupInfo].report for dep in ctx.attr.deps]
+    depsets = [dep[OutputGroupInfo].fixes for dep in ctx.attr.deps]
     fixes = [f for dep in depsets for f in dep.to_list()]
 
     runfiles = ctx.runfiles(
@@ -252,7 +252,7 @@ _apply_fixes = rule(
     attrs = {
         "verify": attr.label(),
         "deps": attr.label_list(
-            aspects = [export_fixes],
+            aspects = [check],
             providers = [CcInfo],
             mandatory = True,
         ),
