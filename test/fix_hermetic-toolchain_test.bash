@@ -14,7 +14,7 @@ bazel \
   run \
   //:apply-fixes | tee "$log"
 
-grep "warning: .*misc-unused-alias-decls" "$log"
+grep "error: .*misc-unused-alias-decls" "$log"
 
 diff \
   --color=always \

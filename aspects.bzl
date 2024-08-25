@@ -10,11 +10,3 @@ check = make_clang_tidy_aspect(
         "--warnings-as-errors='*'",
     ],
 )
-
-export_fixes = make_clang_tidy_aspect(
-    options = [
-        "--use-color",
-        "--warnings-as-errors='-*'",
-        "--export-fixes=$@",
-    ],
-)

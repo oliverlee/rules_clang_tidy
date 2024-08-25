@@ -13,8 +13,8 @@ unset TEST_TMPDIR
 bazel \
   --bazelrc="$test_bazelrc" \
   build \
-  --config=clang-tidy-export-fixes \
-  //...
+  --config=clang-tidy \
+  //... || true
 
 # apply fixes
 bazel \

@@ -71,3 +71,8 @@ tidy_test(
     ],
     example_external = "hermetic-toolchain",
 )
+
+tidy_test(
+    name = "fix_uses-check-action-cache_test",
+    example_external = "misc-unused",
+)

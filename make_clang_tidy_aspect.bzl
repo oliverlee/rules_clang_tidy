@@ -61,18 +61,18 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
         s.elems(),
     )).replace(".bzl", "", 1)
 
+    outbase = ".".join([
+        source_file.short_path,
+        "_".join(fn.map(sanitize, ctx.aspect_ids)),
+    ])
+
     # This output file may be used by clang-apply-replacements which requires a
     # yaml extension.
-    out = ctx.actions.declare_file(
-        ".".join([
-            source_file.short_path,
-            "_".join(fn.map(sanitize, ctx.aspect_ids)),
-            "yaml",
-        ]),
-    )
+    fixes = ctx.actions.declare_file(outbase + ".yaml")
+    result = ctx.actions.declare_file(outbase + ".result")
+    phony = ctx.actions.declare_file(outbase + ".phony")
 
-    sub_outfile = lambda s: s.replace("$@", out.path)
-
+    # This action should succeed so that the fixes file is generated and cached.
     ctx.actions.run_shell(
         inputs = depset(
             direct = [
@@ -82,38 +82,36 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             ],
             transitive = [compilation_ctx.headers],
         ),
-        outputs = [out],
+        outputs = [fixes, result],
         arguments = [str(not kwargs["display_stderr"]).lower()],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
 
-{clang_tidy} \
+({clang_tidy} \
     --config-file={config} \
     {tidy_options} \
     {extra_options} \
+    --export-fixes="{fixes}" \
     {infile} \
-      -- {compiler_command} 2> log.stderr \
-  || (cat log.stderr >&2 && false)
+      -- {compiler_command} 2> log.stderr && echo "true" > {result})\
+  || (cat log.stderr >&2 && echo "false" > {result})
 
 $1 || cat log.stderr
 
-touch {outfile}
+touch {fixes}
 
 # replace sandbox path prefix from file paths and
 # hope `+` isn't used anywhere
-sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
+sed --in-place --expression "s+$(pwd)+%workspace%+g" {fixes}
         """.format(
             clang_tidy = clang_tidy.path,
             config = ctx.file._config.path,
-            tidy_options = sub_outfile(
-                " ".join(kwargs["tidy_options"]),
-            ),
-            extra_options = sub_outfile(
-                " ".join(ctx.attr._extra_options[BuildSettingInfo].value),
-            ),
+            tidy_options = " ".join(kwargs["tidy_options"]),
+            extra_options = " ".join(ctx.attr._extra_options[BuildSettingInfo].value),
             infile = source_file.path,
-            outfile = out.path,
+            fixes = fixes.path,
+            result = result.path,
             compiler_command = " ".join(
                 _toolchain_args(ctx) +
                 _compilation_ctx_args(compilation_ctx) +
@@ -126,7 +124,23 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {outfile}
         execution_requirements = kwargs["execution_requirements"],
     )
 
-    return out
+    # use result to conditionally fail the action
+    ctx.actions.run_shell(
+        inputs = depset(direct = [result]),
+        outputs = [phony],
+        command = """\
+#!/usr/bin/env bash
+set -euo pipefail
+
+bash {result}
+touch {phony}
+        """.format(
+            result = result.path,
+            phony = phony.path,
+        ),
+    )
+
+    return struct(fixes = fixes, phony = phony)
 
 def _check_attr(ctx):
     config_files = ctx.attr._config.files.to_list()
@@ -148,20 +162,27 @@ def _clang_tidy_aspect_impl(**kwargs):
 
         _check_attr(ctx)
 
-        outputs = [
-            _do_tidy(
+        fixes = []
+        phony = []
+        for source_file in (
+            _source_files_in(ctx, "hdrs") +
+            _source_files_in(ctx, "srcs")
+        ):
+            out = _do_tidy(
                 ctx,
                 target[CcInfo].compilation_context,
                 source_file,
                 **kwargs
             )
-            for source_file in (
-                _source_files_in(ctx, "hdrs") +
-                _source_files_in(ctx, "srcs")
-            )
-        ]
+            fixes.append(out.fixes)
+            phony.append(out.phony)
 
-        return [OutputGroupInfo(report = depset(outputs))]
+        return [
+            OutputGroupInfo(
+                report = depset(fixes + phony),
+                fixes = depset(fixes),
+            ),
+        ]
 
     return impl
 
