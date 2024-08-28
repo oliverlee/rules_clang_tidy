@@ -70,6 +70,8 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
     # yaml extension.
     fixes = ctx.actions.declare_file(outbase + ".yaml")
     result = ctx.actions.declare_file(outbase + ".result")
+    stdout = ctx.actions.declare_file(outbase + ".stdout")
+    stderr = ctx.actions.declare_file(outbase + ".stderr")
     phony = ctx.actions.declare_file(outbase + ".phony")
 
     # This action should succeed so that the fixes file is generated and cached.
@@ -82,7 +84,7 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             ],
             transitive = [compilation_ctx.headers],
         ),
-        outputs = [fixes, result],
+        outputs = [fixes, result, stdout, stderr],
         arguments = [str(not kwargs["display_stderr"]).lower()],
         command = """\
 #!/usr/bin/env bash
@@ -94,10 +96,10 @@ set -euo pipefail
     {extra_options} \
     --export-fixes="{fixes}" \
     {infile} \
-      -- {compiler_command} 2> log.stderr && echo "true" > {result})\
-  || (cat log.stderr >&2 && echo "false" > {result})
+      -- {compiler_command} > {stdout} 2> {stderr} && echo "true" > {result}) \
+  || (cat {stderr} >&2 && echo "false" > {result})
 
-$1 || cat log.stderr
+$1 || cat {stderr}
 
 touch {fixes}
 
@@ -112,6 +114,8 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {fixes}
             infile = source_file.path,
             fixes = fixes.path,
             result = result.path,
+            stdout = stdout.path,
+            stderr = stderr.path,
             compiler_command = " ".join(
                 _toolchain_args(ctx) +
                 _compilation_ctx_args(compilation_ctx) +
@@ -126,16 +130,20 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {fixes}
 
     # use result to conditionally fail the action
     ctx.actions.run_shell(
-        inputs = depset(direct = [result]),
+        inputs = depset(direct = [result, stdout, stderr]),
         outputs = [phony],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
 
+cat {stdout}
+>&2 cat {stderr}
 bash {result}
 touch {phony}
         """.format(
             result = result.path,
+            stdout = stdout.path,
+            stderr = stderr.path,
             phony = phony.path,
         ),
     )
