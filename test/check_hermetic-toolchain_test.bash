@@ -13,7 +13,8 @@ bazel \
   --bazelrc="$test_bazelrc" \
   build \
   --config=clang-tidy \
+  --toolchain_resolution_debug="cpp" \
   //... 2>&1 | tee "$log" || true
 
-grep "external/llvm_toolchain/clang-tidy" "$log"
+grep "Selected .*llvm_toolchain" "$log"
 grep "error: .*misc-unused-alias-decls" "$log"
