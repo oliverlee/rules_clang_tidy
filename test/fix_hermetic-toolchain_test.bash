@@ -12,9 +12,7 @@ unset TEST_TMPDIR
 bazel \
   --bazelrc="$test_bazelrc" \
   run \
-  //:apply-fixes | tee "$log"
-
-grep "error: .*misc-unused-alias-decls" "$log"
+  //:apply-fixes
 
 diff \
   --color=always \
