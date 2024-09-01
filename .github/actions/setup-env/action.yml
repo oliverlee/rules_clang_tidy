@@ -9,12 +9,14 @@ runs:
   steps:
 
     - name: install libtinfo5
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         # this is required by the hermetic llvm 16 toolchain
         sudo apt-get install -y libtinfo5
 
     - name: install clang-${{ inputs.clang }}
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         set -x
@@ -35,4 +37,28 @@ runs:
         clang --version
         clang-tidy --version
         clang-apply-replacements --version
+
+    - name: define HOME
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -x
+
+        # https://github.com/bazelbuild/continuous-integration/issues/485#issuecomment-466336418
+        # https://pkg.go.dev/os#UserCacheDir
+        echo "build --action_env=HOME=$HOME" \
+          >> "$HOME/.bazelrc"
+
+    - name: install clang-${{ inputs.clang }}
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -x
+
+        brew install llvm@${{ inputs.clang }}
+
+        # homebrew no longer installs into the default PATH
+        # https://github.com/bazelbuild/bazel/issues/12049#issuecomment-1439637677
+        echo "build --action_env=PATH=$(brew --prefix llvm@${{ inputs.clang }})/bin:$PATH" \
+          >> "$HOME/.bazelrc"
 
