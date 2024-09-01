@@ -74,10 +74,11 @@ build_files=$(find {workspace} \
   | sort \
 )
 
-echo "$build_files" | xargs -I % cat % | md5sum
+echo "$build_files" | xargs -I % cat % | {md5sum}
         """.format(
             workspace = root,
             expression = rctx.attr.find_expr,
+            md5sum = "md5" if rctx.os.name == "mac os x" else "md5sum",
         ),
         executable = True,
     )

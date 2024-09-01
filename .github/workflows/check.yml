@@ -11,37 +11,53 @@ on:
 env:
   CC: clang
 
+defaults:
+  run:
+    # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#jobsjob_iddefaultsrunshell
+    shell: bash
+
 jobs:
   buildifier:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - shell: bash
-        run: |
+      - run: |
           bazel run //tools:format.check
 
   matrix-single-test:
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - bazel: latest
             clang: 18
+            os: macos-latest
+          - bazel: latest
+            clang: 18
+            os: ubuntu-latest
           - bazel: latest
             clang: 17
+            os: ubuntu-latest
           - bazel: latest
             clang: 16
+            os: ubuntu-latest
           - bazel: latest
             clang: 15
+            os: ubuntu-latest
           - bazel: latest
             clang: 14
+            os: ubuntu-latest
           - bazel: 7.x
             clang: 18
+            os: ubuntu-latest
           - bazel: 6.x
             clang: 18
+            os: ubuntu-latest
           - bazel: 5.x
             clang: 18
+            os: ubuntu-latest
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +68,6 @@ jobs:
           clang: ${{ matrix.clang }}
 
       - name: run clang-tidy
-        shell: bash
         env:
           USE_BAZEL_VERION: ${{ matrix.bazel }}
         run: |
@@ -67,16 +82,19 @@ jobs:
         uses: ./.github/actions/setup-env
 
       - name: run clang-tidy
-        shell: bash
         run: |
           bazel test //...
 
+  # https://emmer.dev/blog/skippable-github-status-checks-aren-t-really-required/
+  # https://github.com/marketplace/actions/alls-green
   all:
     runs-on: ubuntu-latest
-    if: ${{ github.base_ref == 'main' }}
+    if: always()
     needs:
       - buildifier
       - matrix-single-test
       - test
     steps:
-    - run: true
+    - uses: re-actors/alls-green@release/v1
+      with:
+        jobs: ${{ toJSON(needs) }}

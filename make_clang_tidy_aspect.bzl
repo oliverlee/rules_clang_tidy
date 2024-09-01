@@ -90,6 +90,10 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
 #!/usr/bin/env bash
 set -euo pipefail
 
+env
+
+echo $PATH
+
 ({clang_tidy} \
     --config-file={config} \
     {tidy_options} \
@@ -105,7 +109,12 @@ touch {fixes}
 
 # replace sandbox path prefix from file paths and
 # hope `+` isn't used anywhere
-sed --in-place --expression "s+$(pwd)+%workspace%+g" {fixes}
+if [ "$(uname)" == "Darwin" ]; then
+  SED_INPLACE="-i''"
+else
+  SED_INPLACE="--in-place"
+fi
+sed "$SED_INPLACE" -e "s+$(pwd)+%workspace%+g" {fixes}
         """.format(
             clang_tidy = clang_tidy.path,
             config = ctx.file._config.path,
@@ -126,6 +135,7 @@ sed --in-place --expression "s+$(pwd)+%workspace%+g" {fixes}
         mnemonic = "ClangTidy",
         progress_message = "Linting {}".format(source_file.short_path),
         execution_requirements = kwargs["execution_requirements"],
+        use_default_shell_env = True,
     )
 
     # use result to conditionally fail the action
