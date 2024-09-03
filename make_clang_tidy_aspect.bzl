@@ -90,10 +90,6 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
 #!/usr/bin/env bash
 set -euo pipefail
 
-env
-
-echo $PATH
-
 ({clang_tidy} \
     --config-file={config} \
     {tidy_options} \
