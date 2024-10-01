@@ -85,7 +85,6 @@ def _do_tidy(ctx, compilation_ctx, source_file, **kwargs):
             transitive = [compilation_ctx.headers],
         ),
         outputs = [fixes, result, stdout, stderr],
-        arguments = [str(not kwargs["display_stderr"]).lower()],
         command = """\
 #!/usr/bin/env bash
 set -euo pipefail
@@ -98,8 +97,6 @@ set -euo pipefail
     {infile} \
       -- {compiler_command} > {stdout} 2> {stderr} && echo "true" > {result}) \
   || (cat {stderr} >&2 && echo "false" > {result})
-
-$1 || cat {stderr}
 
 touch {fixes}
 
@@ -142,9 +139,12 @@ sed "$SED_INPLACE" -e "s+$(pwd)+%workspace%+g" {fixes}
 #!/usr/bin/env bash
 set -euo pipefail
 
-cat {stdout}
->&2 cat {stderr}
-bash {result}
+if ! $(cat {result}); then
+  cat {stdout}
+  >&2 cat {stderr}
+  false
+fi
+
 touch {phony}
         """.format(
             result = result.path,
@@ -204,7 +204,6 @@ def make_clang_tidy_aspect(
         clang_tidy = None,
         config = None,
         options = [],
-        display_stderr = False,
         execution_requirements = None):
     """
     Creates an aspect to run ClangTidy.
@@ -224,11 +223,6 @@ def make_clang_tidy_aspect(
         options: List of strings; default is []
             A list of options passed to ClangTidy.
 
-        display_stderr: `bool`; default is `False`
-            Display stderr when ClangTidy runs successfully. Setting this to
-            `False` is quieter than the `--quiet` option and can be used to
-            suppress messages about the number of generated warnings.
-
         execution_requirements: `dict`; or `None`; default is `None`
             Information for scheduling the action.
             https://bazel.build/reference/be/common-definitions#common.tags
@@ -239,7 +233,6 @@ def make_clang_tidy_aspect(
     return aspect(
         implementation = _clang_tidy_aspect_impl(
             tidy_options = options,
-            display_stderr = display_stderr,
             execution_requirements = execution_requirements,
         ),
         fragments = ["cpp"],
