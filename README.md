@@ -1,12 +1,33 @@
 # rules_clang_tidy
 
 Run `clang-tidy` on Bazel C++ targets. This project is heavily inspired by
-[bazel_clang_tidy](https://github.com/erenon/bazel_clang_tidy) but has changes
-made to better fit my workflow.
+[bazel_clang_tidy](https://github.com/erenon/bazel_clang_tidy) but has options
+to enable or disable checks as aspect arguments.
 
 ## usage
 
-```Starlark
+<details open><summary>MODULE</summary>
+
+```starlark
+# //:.bazelrc
+common --registry=https://raw.githubusercontent.com/digiboys/bazel-registry/main
+common --registry=https://bcr.bazel.build
+```
+
+```starlark
+# //:MODULE.bazel
+bazel_dep(
+    name = "rules_clang_tidy",
+    version = "0.0.0",
+    dev_dependency = True
+)
+```
+
+</details>
+
+<details><summary>WORKSPACE</summary>
+
+```starlark
 # //:WORKSPACE.bazel
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_repository")
 
@@ -28,7 +49,9 @@ load("@rules_clang_tidy//:dependencies.bzl", "rules_clang_tidy_dependencies")
 rules_clang_tidy_dependencies()
 ```
 
-```Starlark
+</details>
+
+```starlark
 # //:.bazelrc
 build:clang-tidy --aspects=@rules_clang_tidy//:aspects.bzl%check
 build:clang-tidy --output_groups=report
